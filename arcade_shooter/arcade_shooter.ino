@@ -1,6 +1,7 @@
 // TO DO:
 // create a scrolling text function
-// maybe delete the write text at pos function 
+// maybe delete the write text at pos function
+// create movement function for joystick on both axis
 
 #include "LedControl.h"
 #include <LiquidCrystal.h>
@@ -27,8 +28,20 @@ const byte upScrollingArrow[8] = {
   B00000
 };
 
+const byte selectionArrow[8] = {
+  B01000,
+  B00100,
+  B00010,
+  B00001,
+  B00010,
+  B00100,
+  B01000,
+  B10000
+};
+
 const int downScrollingArrowLcdId = 0;
 const int upScrollingArrowLcdId = 1;
+const int selectionArrowLcdId = 2;
 
 const int RS = 8;
 const int enable = 9;
@@ -101,6 +114,12 @@ enum state {
   play
 };
 
+enum joystickMove {
+  up,
+  down,
+  neutral
+};
+
 state gameState;
 
 bool joystickSwState = LOW;
@@ -145,17 +164,16 @@ void setup() {
 
   gameState = welcomeScreen;
   lcd.begin(lcdWidth, lcdHeight);
-
+  analogWrite(contrastPin, contrast);
   lcd.createChar(downScrollingArrowLcdId, downScrollingArrow);
   lcd.createChar(upScrollingArrowLcdId, upScrollingArrow);
+  lcd.createChar(selectionArrowLcdId, selectionArrow);
 }
 
 
 void loop() {
 
   analogWrite(contrastPin, contrast);
-
-  Serial.println(gameState);
 
   if (gameState == welcomeScreen) {
     runWelcomeScreen();
@@ -200,132 +218,137 @@ void runWelcomeScreen() {
 
 }
 
-void lcdPrintTextAtPosition(String text, int row, int col) {
-
-  lcd.setCursor(col, row);
-  lcd.print(text);
-}
-
-void updateSelectedOption(int& selectedRow, int& selectedCol) {
+joystickMove joystickVerticalMove() {
 
   static int joystickMoved = false;
-  static const int menuSize = 2;
 
   int xValue = analogRead(joystickPinX);
-  int yValue = analogRead(joystickPinY);
 
   if (xValue < joystickMinThreshold && !joystickMoved) { // joystick moved up
-    if (selectedRow > 0) {
-      selectedRow--;
-      joystickMoved = true;
-    }
+    joystickMoved = true;
+    return up;
   }
 
   if (xValue > joystickMaxThreshold && !joystickMoved) { // joystick moved down
-    if (selectedRow < menuSize - 1) {
-      selectedRow++;
-      joystickMoved = true;
-    }
+    joystickMoved = true;
+    return down;
   }
 
-  if (yValue < joystickMinThreshold && !joystickMoved) { // joystick moved right
-    if (selectedCol < menuSize - 1) {
-      selectedCol++;
-      joystickMoved = true;
-    }
-  }
-
-  if (yValue > joystickMaxThreshold && !joystickMoved) { // joystick moved left
-    if (selectedCol > 0) {
-      selectedCol--;
-      joystickMoved = true;
-    }
-  }
-
-  if ((xValue >= joystickMinThreshold && xValue <= joystickMaxThreshold) && (yValue >= joystickMinThreshold && yValue <= joystickMaxThreshold)) {
+  if (xValue >= joystickMinThreshold && xValue <= joystickMaxThreshold) {
     joystickMoved = false;
   }
 
+  return neutral;
 }
 
-void runHomeScreen() {
 
-  static const int menuSize = 2;
-  static const String menu[menuSize][menuSize] = {
-    {"Play", "Highscore"},
-    {"Settings", "About"}
-  };
+int renderScrollingMenu(String contents[], int contentsLength, bool useSelection = false) {
 
-  static const int spaceBetweenOptions = 2;
-  static const String selectionCharacter = ".";
-
-  static bool selected[menuSize][menuSize] = {
-    {true, false},
-    {false, false}
-  };
-
+  static int menuRow = 0;
+  static int lastMenuRow = 1;
   static int selectedRow = 0;
-  static int selectedCol = 0;
+  static int lastSelectedRow = 0;
 
-  static int lastSelectedRow = 1;
-  static int lastSelectedCol = 0;
+  int joystickMove = joystickVerticalMove();
 
-  int lcdRow = 0;
-  int lcdCol = 0;
-
-  selected[selectedRow][selectedCol] = false;
-  updateSelectedOption(selectedRow, selectedCol);
-  selected[selectedRow][selectedCol] = true;
-
-  if (lastSelectedRow != selectedRow || lastSelectedCol != selectedCol) { // refresh lcd if the selected option has changed
-    lcd.clear();
-
-    for (int row = 0; row < menuSize; row++) {
-      lcdRow = row;
-      for (int col = 0; col < menuSize; col++) {
-        lcdPrintTextAtPosition(menu[row][col], lcdRow, lcdCol);
-        lcdCol += menu[row][col].length();
-
-        if (selected[row][col]) {
-          lcdPrintTextAtPosition(selectionCharacter, lcdRow, lcdCol);
-        }
-        lcdCol += spaceBetweenOptions; // change this
-      }
-      lcdCol = 0;
+  if (joystickMove == up) {
+    if (menuRow) {
+      menuRow--;
+    }
+    if (selectedRow) {
+      selectedRow--;
+    }
+  }
+  else if (joystickMove == down) {
+    if (menuRow < contentsLength - lcdHeight) {
+      menuRow++;
+    }
+    if (selectedRow < contentsLength - 1) {
+      selectedRow++;
     }
   }
 
+  if (menuRow != lastMenuRow || selectedRow != lastSelectedRow) {
+
+    lcd.clear();
+
+    for (int i = menuRow; i < menuRow + lcdHeight; i++) {
+      lcd.setCursor(0, i - menuRow);
+      lcd.print(contents[i]);
+
+      if (useSelection && i == selectedRow) {
+        lcd.setCursor(contents[i].length() + 1, i - menuRow);
+        lcd.write(byte(selectionArrowLcdId));
+      }
+    }
+
+    if (menuRow) {
+      lcd.setCursor(lcdWidth - 1, 0);
+      lcd.write(byte(upScrollingArrowLcdId));
+    }
+
+    if (menuRow < contentsLength - lcdHeight) {
+
+      lcd.setCursor(lcdWidth - 1, lcdHeight - 1);
+      lcd.write(byte(downScrollingArrowLcdId));
+    }
+  }
+
+  lastMenuRow = menuRow;
   lastSelectedRow = selectedRow;
-  lastSelectedCol = selectedCol;
 
   if (joystickSwState != lastJoystickSwState) {
-    if (menu[selectedRow][selectedCol] == "Play") {
-      gameState = play;
-    }
-    else if (menu[selectedRow][selectedCol] == "Highscore") {
-      gameState = highscore;
-    }
-    else if (menu[selectedRow][selectedCol] == "Settings") {
-      gameState = settings;
-    }
-    else if (menu[selectedRow][selectedCol] == "About") {
-      gameState = about;
+    menuRow = 0;
+    lastMenuRow = 1;
+    lastSelectedRow = 0;
+
+    int auxSelectedRow = selectedRow;
+    selectedRow = 0;
+
+    if (useSelection) {
+      return auxSelectedRow;
     }
     else {
-      gameState = unknown;
+      gameState = homeScreen;
+      return -1; // code for "don't load anything else"
     }
-    selected[selectedRow][selectedCol] = false;
-    selected[0][0] = true;
-    selectedRow = selectedCol = 0;
-    lastSelectedRow = 1;
-    lastSelectedCol = 0;
+  }
 
+  return -1;
+}
+
+
+void runHomeScreen() {
+
+  static const int optionsLength = 4;
+  static const String options[] = {
+    "1.Play",
+    "2.Settings",
+    "3.Highscores",
+    "4.About"
+  };
+
+  int exitCode = renderScrollingMenu(options, optionsLength, true);
+
+  if (exitCode != -1) {
+    if (exitCode == 0) {
+      gameState = play;
+    }
+    else if (exitCode == 1) {
+      gameState = settings;
+    }
+    else if (exitCode == 2) {
+      gameState = highscore;
+    }
+    else {
+      gameState = about;
+    }
   }
 }
 
 void runAboutMenu() {
 
-  static const int aboutDescriptionRowsCount = 7;
+  static const int aboutDescriptionRowsCount = 8;
   static const String aboutDescription[aboutDescriptionRowsCount] = {
     "Arcade-shooter",
     "Made by",
@@ -333,74 +356,11 @@ void runAboutMenu() {
     "Github link:",
     "github.com/",
     "Dawlau/",
-    "arcade-shooter"
+    "arcade-shooter",
+    "-Press to back-"
   };
 
-  static int menuRow = 0;
-  static int lastMenuRow = 1;
-
-  static bool joystickMoved = false;
-
-  int xValue = analogRead(joystickPinX);
-
-  if (xValue < joystickMinThreshold && !joystickMoved) { // joystick moved up
-    if (menuRow) {
-      menuRow--;
-      joystickMoved = true;
-    }
-  }
-
-  if (xValue > joystickMaxThreshold && !joystickMoved) { // joystick moved down
-    if (menuRow < aboutDescriptionRowsCount - lcdHeight + 1) {
-      menuRow++;
-      joystickMoved = true;
-    }
-  }
-
-  if (xValue >= joystickMinThreshold && xValue <= joystickMaxThreshold) {
-    joystickMoved = false;
-  }
-
-  if (menuRow != lastMenuRow) {
-
-    lcd.clear();
-
-    if (menuRow == aboutDescriptionRowsCount - lcdHeight + 1) {
-
-      for (int i = menuRow; i < aboutDescriptionRowsCount; i++) {
-        lcd.setCursor(0, i - menuRow);
-        lcd.print(aboutDescription[i]);
-        lcd.setCursor(lcdWidth - 1, i - menuRow);
-        lcd.write(byte(upScrollingArrowLcdId));
-      }
-
-      lcd.setCursor(0, lcdHeight - 1);
-      lcd.print("-Press to back-");
-    }
-    else {
-      for (int i = menuRow; i < menuRow + lcdHeight; i++) {
-        lcd.setCursor(0, i - menuRow);
-        lcd.print(aboutDescription[i]);
-      }
-
-      if (menuRow) {
-        lcd.setCursor(lcdWidth - 1, 0);
-        lcd.write(byte(upScrollingArrowLcdId));
-      }
-
-      lcd.setCursor(lcdWidth - 1, lcdHeight - 1);
-      lcd.write(byte(downScrollingArrowLcdId));
-    }
-  }
-
-  if (joystickSwState != lastJoystickSwState) {
-    menuRow = 0;
-    lastMenuRow = 1;
-    joystickMoved = false;
-    gameState = homeScreen;
-  }
-
-  lastMenuRow = menuRow;
+  int exitCode = renderScrollingMenu(aboutDescription, aboutDescriptionRowsCount);
 }
 
 void runSettingsMenu() {
@@ -421,72 +381,24 @@ int digitsCount(int no) {
 
 void runHighscoreMenu() {
 
-  static int menuRow = 0;
-  static int lastMenuRow = 1;
-  static bool joystickMoved = false;
+  static const int lcdContentsLength = maxHighscoresCount + 1;
+  static String lcdContents[lcdContentsLength];
 
-  int xValue = analogRead(joystickPinX);
+  if (lcdContents[0] == "") {
+    for (int i = 0;  i < maxHighscoresCount; i++) {
+      String spaces = "";
+      int spacesCount = lcdWidth - digitsCount(highscores[i]) - 1 - highscoreNames[i].length();
 
-  if (xValue < joystickMinThreshold && !joystickMoved) { // joystick moved up
-    if (menuRow) {
-      menuRow--;
-      joystickMoved = true;
-    }
-  }
-
-  if (xValue > joystickMaxThreshold && !joystickMoved) { // joystick moved down
-    if (menuRow < maxHighscoresCount - lcdHeight + 1) {
-      menuRow++;
-      joystickMoved = true;
-    }
-  }
-
-  if (xValue >= joystickMinThreshold && xValue <= joystickMaxThreshold) {
-    joystickMoved = false;
-  }
-
-  if (menuRow != lastMenuRow) {
-
-    lcd.clear();
-
-    if (menuRow == maxHighscoresCount - lcdHeight + 1) {
-
-      for (int i = menuRow; i < maxHighscoresCount; i++) {
-        lcd.setCursor(0, i - menuRow);
-        lcd.print(highscoreNames[i]);
-        lcd.setCursor(lcdWidth - digitsCount(highscores[i]) - 1, i - menuRow);
-        lcd.print(highscores[i]);
-        lcd.setCursor(lcdWidth - 1, i - menuRow);
-        lcd.write(byte(upScrollingArrowLcdId));
+      while(spacesCount){
+        spaces += " ";
+        spacesCount--;
       }
-
-      lcd.setCursor(0, lcdHeight - 1);
-      lcd.print("-Press to back-");
+      
+      lcdContents[i] = highscoreNames[i] + spaces + String(highscores[i]);
     }
-    else {
-      for (int i = menuRow; i < menuRow + lcdHeight; i++) {
-        lcd.setCursor(0, i - menuRow);
-        lcd.print(highscoreNames[i]);
-        lcd.setCursor(lcdWidth - digitsCount(highscores[i]) - 1, i - menuRow);
-        lcd.print(highscores[i]);
-      }
 
-      if (menuRow) {
-        lcd.setCursor(lcdWidth - 1, 0);
-        lcd.write(byte(upScrollingArrowLcdId));
-      }
-
-      lcd.setCursor(lcdWidth - 1, lcdHeight - 1);
-      lcd.write(byte(downScrollingArrowLcdId));
-    }
+    lcdContents[lcdContentsLength - 1] = "-Press to back-";
   }
 
-  lastMenuRow = menuRow;
-
-  if (joystickSwState != lastJoystickSwState) {
-    menuRow = 0;
-    lastMenuRow = 1;
-    joystickMoved = false;
-    gameState = homeScreen;
-  }
+  int exitCode = renderScrollingMenu(lcdContents, lcdContentsLength);
 }

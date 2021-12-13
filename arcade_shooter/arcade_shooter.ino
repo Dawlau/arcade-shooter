@@ -1,11 +1,10 @@
 // TO DO:
 // make matrix work
-// add naming
 // test matrix brightness
-// add highscores to eeprom
 
 #include "LedControl.h"
 #include <LiquidCrystal.h>
+#include "EEPROM.h"
 
 const byte downScrollingArrow[8] = {
   B00000,
@@ -93,21 +92,17 @@ const int joystickMaxThreshold = 750;
 const int contrastPin = 3;
 
 const String gameName = "Arcade-shooter";
+const String defaultName = "anonymous";
+const int nameSize = 9;
 
 const int maxHighscoresCount = 3;
 
 const int minLevel = 1;
 const int maxLevel = 6;
 
-String highscoreNames[maxHighscoresCount] = {
-  "aaaa",
-  "bbbb",
-  "cccc",
-};
+String highscoreNames[maxHighscoresCount];
 
-int highscores[maxHighscoresCount] = {
-  1523, 110, 12
-};
+byte highscores[maxHighscoresCount];
 
 int xValue = 0;
 int yValue = 0;
@@ -141,6 +136,15 @@ const unsigned int maxContrast = 150;
 bool matrixUpdate = true;
 int level = minLevel;
 
+String playerName = defaultName;
+int playerNameIndex = 0;
+int playerHighscore = 4;
+
+const byte contrastAddress = 0;
+const byte brightnessAddress = 1;
+const byte matrixBrightnessAddress = 2;
+const byte highscoreAddress = 3;
+
 LedControl lc = LedControl(dinPin, clockPin, loadPin, 1); //DIN, CLK, LOAD, No. DRIVER
 LiquidCrystal lcd(RS, enable, D4, D5, D6, D7);
 
@@ -152,11 +156,11 @@ enum state {
   about,
   settings,
   play,
-  changename,
-  setlevel,
-  setcontrast,
-  setbrightness,
-  setmatrixbrightness
+  changeName,
+  setLevel,
+  setContrast,
+  setBrightness,
+  setMatrixBrightness
 };
 
 enum joystickMove {
@@ -164,7 +168,7 @@ enum joystickMove {
   down,
   left,
   right,
-  neutral
+  neutral,
 };
 
 state gameState;
@@ -211,6 +215,11 @@ void setup() {
 
   pinMode(brightnessPin, OUTPUT);
 
+  contrast = EEPROM.read(contrastAddress);
+  brightness = EEPROM.read(brightnessAddress);
+  matrixBrightness = EEPROM.read(matrixBrightnessAddress);
+
+
   analogWrite(contrastPin, contrast);
   analogWrite(brightnessPin, brightness);
 
@@ -231,63 +240,94 @@ void setup() {
       matrix[row][col] = 1;
     }
   }
+  
+  for (int row = 0; row < matrixSize; row++) {
+    for (int col = 0; col < matrixSize; col++) {
+      lc.setLed(0, col, row, true);
+    }
+  }
 //
-//  for (int row = 0; row < matrixSize; row++) {
-//    for (int col = 0; col < matrixSize; col++) {
-//      lc.setLed(0, row, col, true);
+  for (int i = 0, address = highscoreAddress; i < maxHighscoresCount; i++, address++) {
+    String copyName = "";
+    for (int characterIndex = 0; characterIndex < nameSize; characterIndex++) {
+      copyName += char(EEPROM.read(address));
+      address++;
+    }
+    highscoreNames[i] = copyName;
+    highscores[i] = EEPROM.read(address);
+  }
+
+  for(int i = 0; i < 3; i++ ){
+    Serial.println(highscoreNames[i]);
+  }
+
+
+//  for (int i = 0, address = highscoreAddress; i < maxHighscoresCount; i++, address++) {
+//    for (int characterIndex = 0; characterIndex < nameSize; characterIndex++) {
+//      EEPROM.update(address, 0);
+//      address++;
 //    }
+//    EEPROM.update(address, 0);
+//  } 
+//
+//  for(int i = 0;i < 3; i++) {
+//    highscores[i] = 3 - i;
+//    highscoreNames[i] = defaultName;
 //  }
 }
 
 
 void loop() {
-//
-//  for (int row = 0; row < matrixSize; row++) {
-//    for (int col = 0; col < matrixSize; col++) {
-//      lc.setLed(0, col, row, true);// turns on LEDat col, row
-//      delay(25);
-//    }
-//  } 
-//  for (int row = 0; row < matrixSize; row++) {
-//    for (int col = 0; col < matrixSize; col++) {
-//      lc.setLed(0, col, row, false);// turns offLED at col, row
-//      delay(25);
-//    }
-//  }
+  //
+  //  for (int row = 0; row < matrixSize; row++) {
+  //    for (int col = 0; col < matrixSize; col++) {
+  //      lc.setLed(0, col, row, true);// turns on LEDat col, row
+  //      delay(25);
+  //    }
+  //  }
+  //  for (int row = 0; row < matrixSize; row++) {
+  //    for (int col = 0; col < matrixSize; col++) {
+  //      lc.setLed(0, col, row, false);// turns offLED at col, row
+  //      delay(25);
+  //    }
+  //  }
 
 
-if (gameState == welcomeScreen) {
-  runWelcomeScreen();
-}
-else if (gameState == homeScreen) {
-  runHomeScreen();
-}
-else if (gameState == highscore) {
-  runHighscoreMenu();
-}
-else if (gameState == settings) {
-  runSettingsMenu();
-}
-else if (gameState == about) {
-  runAboutMenu();
-}
-else if (gameState == changename) {
-  runChangeName();
-}
-else if (gameState == setlevel) {
-  runSetLevel();
-}
-else if (gameState == setcontrast) {
-  runSetContrast();
-}
-else if (gameState == setbrightness) {
-  runSetBrightness();
-}
-else if (gameState == setmatrixbrightness) {
-  runSetMatrixBrightness();
-}
+  if (gameState == welcomeScreen) {
+    runWelcomeScreen();
+  }
+  else if (gameState == homeScreen) {
+    runHomeScreen();
+  }
+  else if (gameState == highscore) {
+    runHighscoreMenu();
+  }
+  else if (gameState == settings) {
+    runSettingsMenu();
+  }
+  else if (gameState == about) {
+    runAboutMenu();
+  }
+  else if (gameState == changeName) {
+    runChangeName();
+  }
+  else if (gameState == setLevel) {
+    runSetLevel();
+  }
+  else if (gameState == setContrast) {
+    runSetContrast();
+  }
+  else if (gameState == setBrightness) {
+    runSetBrightness();
+  }
+  else if (gameState == setMatrixBrightness) {
+    runSetMatrixBrightness();
+  }
+  else if (gameState == play) {
+    runPlayGame();
+  }
 
-lastJoystickSwState = joystickSwState;
+  lastJoystickSwState = joystickSwState;
 }
 
 void runWelcomeScreen() {
@@ -479,19 +519,19 @@ void runSettingsMenu() {
     gameState = homeScreen;
   }
   else if (exitCode == 1) {
-    gameState = changename;
+    gameState = changeName;
   }
   else if (exitCode == 2) {
-    gameState = setlevel;
+    gameState = setLevel;
   }
   else if (exitCode == 3) {
-    gameState = setcontrast;
+    gameState = setContrast;
   }
   else if (exitCode == 4) {
-    gameState = setbrightness;
+    gameState = setBrightness;
   }
   else if (exitCode == 5) {
-    gameState = setmatrixbrightness;
+    gameState = setMatrixBrightness;
   }
 }
 
@@ -557,7 +597,79 @@ joystickMove joystickHorizontalMove() {
 
 void runChangeName() {
 
+  static int lastPlayerNameIndex = 1;
+  static bool changedLetter = false;
 
+  int joystickMoveHorizontal = joystickHorizontalMove();
+
+  if (joystickMoveHorizontal == left && playerNameIndex > 0) {
+    playerNameIndex--;
+  }
+
+  if (joystickMoveHorizontal == right && playerNameIndex < nameSize - 1) {
+    playerNameIndex++;
+  }
+
+  int joystickMoveVertical = joystickVerticalMove();
+
+  if (joystickMoveVertical == up) {
+    changedLetter = true;
+    if (playerName[playerNameIndex] == 'z') {
+      playerName[playerNameIndex] = ' ';
+    }
+    else if (playerName[playerNameIndex] == ' ') {
+      playerName[playerNameIndex] = 'a';
+    }
+    else {
+      playerName[playerNameIndex]++;
+    }
+  }
+
+  if (joystickMoveVertical == down) {
+    changedLetter = true;
+    if (playerName[playerNameIndex] == ' ') {
+      playerName[playerNameIndex] = 'z';
+    }
+    else if (playerName[playerNameIndex] == 'a') {
+      playerName[playerNameIndex] = ' ';
+    }
+    else {
+      playerName[playerNameIndex]--;
+    }
+  }
+
+  if (lastPlayerNameIndex != playerNameIndex || changedLetter) {
+
+    changedLetter = false;
+    lcd.clear();
+
+    String title = "Name: (X=space)";
+
+    lcd.home();
+    lcd.print(title);
+
+    for (int i = 0, lcdPosition = (lcdWidth - nameSize) / 2; i < nameSize; i++, lcdPosition++) {
+      lcd.setCursor(lcdPosition, 1);
+      if (playerName[i] == ' ') {
+        lcd.print('X');
+      }
+      else {
+        lcd.print(playerName[i]);
+      }
+    }
+
+    lcd.setCursor((lcdWidth - nameSize) / 2 + playerNameIndex, 1);
+    lcd.cursor();
+  }
+
+  lastPlayerNameIndex = playerNameIndex;
+
+
+  if (joystickSwState != lastJoystickSwState) {
+    lastPlayerNameIndex = 1;
+    changedLetter = false;
+    gameState = settings;
+  }
 }
 
 void runSetLevel() {
@@ -615,8 +727,6 @@ void runSetContrast() {
     contrast++;
   }
 
-
-
   String title = "Select contrast:";
 
   if (contrast != lastContrast) {
@@ -641,6 +751,7 @@ void runSetContrast() {
 
   if (joystickSwState != lastJoystickSwState) {
     lastContrast = 0;
+    EEPROM.update(contrastAddress, contrast);
     gameState = settings;
   }
 }
@@ -686,6 +797,7 @@ void runSetBrightness() {
 
   if (joystickSwState != lastJoystickSwState) {
     lastBrightness = 0;
+    EEPROM.update(brightnessAddress, brightness);
     gameState = settings;
   }
 }
@@ -728,6 +840,39 @@ void runSetMatrixBrightness() {
 
   if (joystickSwState != lastJoystickSwState) {
     lastMatrixBrightness = 0;
+    EEPROM.update(matrixBrightnessAddress, matrixBrightness);
     gameState = settings;
   }
+}
+
+void updateHighScores() {
+
+  // insert highscore
+
+  for (int i = 0; i < maxHighscoresCount; i++) {
+    if (highscores[i] < playerHighscore) {
+      for (int j = maxHighscoresCount - 1; j > i; j--) {
+        highscores[j] = highscores[j - 1];
+        highscoreNames[j] = highscoreNames[j - 1];
+      }
+      highscores[i] = playerHighscore;
+      highscoreNames[i] = playerName;
+      break;
+    }
+  }
+
+  for (int i = 0, address = highscoreAddress; i < maxHighscoresCount; i++, address++) {
+    for (int characterIndex = 0; characterIndex < nameSize; characterIndex++) {
+      EEPROM.update(address, highscoreNames[i][characterIndex]);
+      address++;
+    }
+    EEPROM.update(address, highscores[i]);
+  }
+}
+
+void runPlayGame() {
+
+  updateHighScores();
+
+  gameState = welcomeScreen;
 }

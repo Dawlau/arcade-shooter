@@ -1,10 +1,10 @@
-// TO DO:
-// make matrix work
-// test matrix brightness
-
 #include "LedControl.h"
 #include <LiquidCrystal.h>
 #include "EEPROM.h"
+
+// TO DO:
+// fix highscore
+// add physics (jump)
 
 const byte downScrollingArrow[8] = {
   B00000,
@@ -145,6 +145,26 @@ const byte brightnessAddress = 1;
 const byte matrixBrightnessAddress = 2;
 const byte highscoreAddress = 3;
 
+const byte mapHeight = 8;
+const byte mapWidth = 50;
+
+bool gameMap[mapHeight][mapWidth];
+const byte minPlatformLength = 3;
+const byte maxPlatformLength = 6;
+const byte characterSize = 3; // size of player and enemies
+
+bool fovUpdate;
+
+byte cameraLeftPosition = 0;
+byte cameraRightPosition = matrixSize;
+
+const byte jumpSize = 3;
+
+byte playerRow = 0;
+byte playerCol = 0;
+
+byte jumpsLeft = 0;
+
 LedControl lc = LedControl(dinPin, clockPin, loadPin, 1); //DIN, CLK, LOAD, No. DRIVER
 LiquidCrystal lcd(RS, enable, D4, D5, D6, D7);
 
@@ -201,7 +221,6 @@ void changeJoystickSwState() {
   lastInterruptTime = interruptTime;
 }
 
-
 void setup() {
   Serial.begin(9600);
 
@@ -235,18 +254,6 @@ void setup() {
   lcd.createChar(increaseArrowLcdId, increaseArrow);
   lcd.createChar(decreaseArrowLcdId, decreaseArrow);
 
-  for (int row = 0; row < matrixSize; row++) {
-    for (int col = 0; col < matrixSize; col++) {
-      matrix[row][col] = 1;
-    }
-  }
-  
-  for (int row = 0; row < matrixSize; row++) {
-    for (int col = 0; col < matrixSize; col++) {
-      lc.setLed(0, col, row, true);
-    }
-  }
-//
   for (int i = 0, address = highscoreAddress; i < maxHighscoresCount; i++, address++) {
     String copyName = "";
     for (int characterIndex = 0; characterIndex < nameSize; characterIndex++) {
@@ -257,41 +264,186 @@ void setup() {
     highscores[i] = EEPROM.read(address);
   }
 
-  for(int i = 0; i < 3; i++ ){
+  for (int i = 0; i < 3; i++ ) {
     Serial.println(highscoreNames[i]);
   }
 
+  randomSeed(analogRead(0));
 
-//  for (int i = 0, address = highscoreAddress; i < maxHighscoresCount; i++, address++) {
-//    for (int characterIndex = 0; characterIndex < nameSize; characterIndex++) {
-//      EEPROM.update(address, 0);
-//      address++;
-//    }
-//    EEPROM.update(address, 0);
-//  } 
-//
-//  for(int i = 0;i < 3; i++) {
-//    highscores[i] = 3 - i;
-//    highscoreNames[i] = defaultName;
-//  }
+
+  //  for (int i = 0, address = highscoreAddress; i < maxHighscoresCount; i++, address++) {
+  //    for (int characterIndex = 0; characterIndex < nameSize; characterIndex++) {
+  //      EEPROM.update(address, 0);
+  //      address++;
+  //    }
+  //    EEPROM.update(address, 0);
+  //  }
+  //
+  //  for(int i = 0;i < 3; i++) {
+  //    highscores[i] = 3 - i;
+  //    highscoreNames[i] = defaultName;
+  //  }
 }
 
+void generateLevel() {
+
+  byte lastPlatformHeight = 3;
+  byte lastPlatformEnd = -1;
+
+  for (int col = 0; col < mapWidth;) {
+
+    bool startPlatform; // 0 or 1
+
+    if (col - lastPlatformEnd > jumpSize) {
+      startPlatform = true;
+    }
+    else {
+      startPlatform = random(2);
+    }
+
+    if (startPlatform) {
+      byte platformLength = random(minPlatformLength, min(mapWidth - col, maxPlatformLength));
+      byte mapRow = random(max(lastPlatformHeight - jumpSize, characterSize + 1), mapHeight);
+      for (int i = col; i < col + platformLength; i++) {
+        gameMap[mapRow][i] = true;
+      }
+      col += platformLength;
+      lastPlatformHeight = mapRow;
+      lastPlatformEnd = col - 1;
+    }
+    else {
+      col++;
+    }
+  }
+}
+
+void displayMap() {
+
+  lc.clearDisplay(0);
+  for (int row = 0; row < matrixSize; row++) {
+    for (int col = cameraLeftPosition; col < cameraRightPosition; col++) {
+      lc.setLed(0, matrixSize - (col - cameraLeftPosition) - 1, row, gameMap[row][col]);
+    }
+  }
+
+  for (int row = playerRow; row > playerRow - characterSize; row--) {
+    lc.setLed(0, matrixSize - (playerCol - cameraLeftPosition) - 1, row, true);
+  }
+
+  lc.setLed(0, matrixSize - (playerCol + 1 - cameraLeftPosition) - 1, playerRow - 1, true); // display hand
+
+  //  delay(1000);
+}
+
+void setStartingPosition() {
+
+  for (int col = 0; col < mapWidth; col++) {
+    for (int row = 0; row < mapHeight; row++) {
+      if (gameMap[row][col]) {
+        playerRow = row - 1;
+        playerCol = col;
+
+        Serial.print(playerRow);
+        Serial.print(' ');
+        Serial.println(playerCol);
+
+        return ;
+      }
+    }
+  }
+
+}
+
+bool checkCollision(int nextRow, int nextCol) {
+
+  for (int row = nextRow; row > playerRow - characterSize; row--) {
+    if (gameMap[row][nextCol]) {
+      return true;
+    }
+  }
+
+  if (gameMap[nextRow - 1][nextCol + 1]) {
+    return true;
+  }
+
+  return false;
+}
+
+void runPlayGame() {
+
+  static bool startOfLevel = true;
+  static unsigned long long lastJump = 0;
+  static int jumpInterval = 200;
+  static int fallInterval = 200;
+  static unsigned long long lastFall = 0;
+
+  if (startOfLevel) {
+    for (int row = 0; row < mapHeight; row++) {
+      for (int col = 0; col < mapWidth; col++) {
+        gameMap[row][col] = false;
+      }
+    }
+    generateLevel();
+    setStartingPosition();
+    startOfLevel = false;
+    fovUpdate = true;
+  }
+
+  if (jumpsLeft) {
+    if (playerRow - characterSize + 1 > 0) {
+      if (millis() - lastJump >= jumpInterval) {
+        jumpsLeft--;
+        playerRow--;
+        lastJump = millis();
+      }
+    }
+    else {
+      jumpsLeft = 0;
+    }
+  }
+
+  int joystickMove = joystickVerticalMove();
+
+  if (joystickMove == up && (checkCollision(playerRow + 1, playerCol) || checkCollision(playerRow, playerCol + 1))) {
+    jumpsLeft = jumpSize;
+  }
+
+  if (playerRow == mapHeight) { // dead
+    startOfLevel = true;
+    gameState = homeScreen;
+    cameraLeftPosition = 0;
+    cameraRightPosition = matrixSize;
+    return ;
+  }
+
+  if (!checkCollision(playerRow + 1, playerCol) && jumpsLeft == 0 && millis() - lastFall > fallInterval) { // go down if there is no platform
+    playerRow++;
+    lastFall = millis();
+    fovUpdate = true;
+  }
+
+  joystickMove = joystickHorizontalMove();
+
+  if (joystickMove == left && cameraLeftPosition > 0 && !checkCollision(playerRow, playerCol - 1)) {
+    cameraLeftPosition--;
+    cameraRightPosition--;
+    playerCol--;
+    fovUpdate = true;
+  }
+
+  if (joystickMove == right && cameraRightPosition < mapWidth && !checkCollision(playerRow, playerCol + 1)) {
+    cameraLeftPosition++;
+    cameraRightPosition++;
+    playerCol++;
+    fovUpdate = true;
+  }
+
+  if (fovUpdate) {
+    displayMap();
+  }
+}
 
 void loop() {
-  //
-  //  for (int row = 0; row < matrixSize; row++) {
-  //    for (int col = 0; col < matrixSize; col++) {
-  //      lc.setLed(0, col, row, true);// turns on LEDat col, row
-  //      delay(25);
-  //    }
-  //  }
-  //  for (int row = 0; row < matrixSize; row++) {
-  //    for (int col = 0; col < matrixSize; col++) {
-  //      lc.setLed(0, col, row, false);// turns offLED at col, row
-  //      delay(25);
-  //    }
-  //  }
-
 
   if (gameState == welcomeScreen) {
     runWelcomeScreen();
@@ -337,6 +489,7 @@ void runWelcomeScreen() {
 
   if (millis() < welcomeScreenDuration) { // enough to just check millis() against the duration since it is the first thing that runs
     if (!displayed) {
+      lcd.clear();
       lcd.home(); // first row
       lcd.print("Welcome to");
       lcd.setCursor(0, lcdHeight - 1); // second row
@@ -669,6 +822,7 @@ void runChangeName() {
     lastPlayerNameIndex = 1;
     changedLetter = false;
     gameState = settings;
+    lcd.noCursor();
   }
 }
 
@@ -868,11 +1022,4 @@ void updateHighScores() {
     }
     EEPROM.update(address, highscores[i]);
   }
-}
-
-void runPlayGame() {
-
-  updateHighScores();
-
-  gameState = welcomeScreen;
 }

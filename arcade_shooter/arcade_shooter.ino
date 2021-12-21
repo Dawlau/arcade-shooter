@@ -3,10 +3,16 @@
 #include "EEPROM.h"
 
 // TO DO:
-// fix highscore
-// add physics (jump)
 
-const byte downScrollingArrow[8] = {
+// difficulty stuff
+// memory problems (fix: print rows of bits, hopefully not)
+// fix falling bug
+// fix joystick movement
+// enemy shooting needs more testing
+
+const byte lcdCharacterSize = 8;
+
+const byte downScrollingArrow[lcdCharacterSize] = {
   B00000,
   B00000,
   B00000,
@@ -17,7 +23,7 @@ const byte downScrollingArrow[8] = {
   B00100
 };
 
-const byte upScrollingArrow[8] = {
+const byte upScrollingArrow[lcdCharacterSize] = {
   B00100,
   B01110,
   B11111,
@@ -28,7 +34,7 @@ const byte upScrollingArrow[8] = {
   B00000
 };
 
-const byte selectionArrow[8] = {
+const byte selectionArrow[lcdCharacterSize] = {
   B01000,
   B00100,
   B00010,
@@ -39,7 +45,7 @@ const byte selectionArrow[8] = {
   B10000
 };
 
-const byte increaseArrow[8] = {
+const byte increaseArrow[lcdCharacterSize] = {
   B01000,
   B01100,
   B01110,
@@ -50,7 +56,7 @@ const byte increaseArrow[8] = {
   B01000
 };
 
-const byte decreaseArrow[8] = {
+const byte decreaseArrow[lcdCharacterSize] = {
   B00010,
   B00110,
   B01110,
@@ -61,44 +67,44 @@ const byte decreaseArrow[8] = {
   B00000
 };
 
-const int downScrollingArrowLcdId = 0;
-const int upScrollingArrowLcdId = 1;
-const int selectionArrowLcdId = 2;
-const int decreaseArrowLcdId = 3;
-const int increaseArrowLcdId = 4;
+const byte downScrollingArrowLcdId = 0;
+const byte upScrollingArrowLcdId = 1;
+const byte selectionArrowLcdId = 2;
+const byte decreaseArrowLcdId = 3;
+const byte increaseArrowLcdId = 4;
 
-const int RS = 8;
-const int enable = 9;
-const int D4 = 7;
-const int D5 = 13;
-const int D6 = 5;
-const int D7 = 4;
+const byte RS = 8;
+const byte enable = 9;
+const byte D4 = 7;
+const byte D5 = 13;
+const byte D6 = 5;
+const byte D7 = 4;
 
-const int dinPin = 12;
-const int clockPin = 11;
-const int loadPin = 10;
+const byte dinPin = 12;
+const byte clockPin = 11;
+const byte loadPin = 10;
 
-const int joystickPinX = A0;
-const int joystickPinY = A1;
-const int joystickPinSW = 2;
+const byte joystickPinX = A0;
+const byte joystickPinY = A1;
+const byte joystickPinSW = 2;
 
-const int brightnessPin = 6;
+const byte brightnessPin = 6;
 
-const int matrixSize = 8;
+const byte matrixSize = 8;
 
-const int joystickMinThreshold = 200;
-const int joystickMaxThreshold = 750;
+const byte joystickMinThreshold = 200;
+const int joystickMaxThreshold = 900;
 
-const int contrastPin = 3;
+const byte contrastPin = 3;
 
 const String gameName = "Arcade-shooter";
 const String defaultName = "anonymous";
-const int nameSize = 9;
+const byte nameSize = 9;
 
-const int maxHighscoresCount = 3;
+const byte maxHighscoresCount = 3;
 
-const int minLevel = 1;
-const int maxLevel = 6;
+const byte minLevel = 1;
+const byte maxLevel = 4;
 
 String highscoreNames[maxHighscoresCount];
 
@@ -113,32 +119,35 @@ byte yPos = 0;
 byte xLastPos = 0;
 byte yLastPos = 0;
 
-const int minMatrixBrightness = 1;
-int matrixBrightness = 8;
-const int maxMatrixBrightness = 9;
+const byte minMatrixBrightness = 1;
+byte matrixBrightness = 8;
+const byte maxMatrixBrightness = 9;
 
-const int minBrightness = 10;
-int brightness = 240;
-const int maxBrightness = 245;
-const int brightnessOffset = 10;
+const int minBrightness = 0;
+byte brightness = 240;
+const byte maxBrightness = 245;
+const byte brightnessOffset = 10;
 
 
-const int lcdWidth = 16;
-const int lcdHeight = 2;
+const byte lcdWidth = 16;
+const byte lcdHeight = 2;
 
 unsigned long long lastMoved = 0;
-const int moveInterval = 100;
+const byte moveInterval = 100;
 
-const unsigned int minContrast = 60;
-unsigned int contrast = 110;
-const unsigned int maxContrast = 150;
+const byte minContrast = 60;
+byte contrast = 110;
+const byte maxContrast = 150;
 
 bool matrixUpdate = true;
 int level = minLevel;
 
 String playerName = defaultName;
-int playerNameIndex = 0;
-int playerHighscore = 4;
+byte playerNameIndex = 0;
+const byte startPlayerHighscore = 255;
+byte playerHighscore = startPlayerHighscore;
+const byte defaultPlayerLife = 5;
+byte playerLife = defaultPlayerLife;
 
 const byte contrastAddress = 0;
 const byte brightnessAddress = 1;
@@ -165,6 +174,34 @@ byte playerCol = 0;
 
 byte jumpsLeft = 0;
 
+const byte randomPin = 0;
+
+const byte maxEnemiesCount = 20;
+byte enemyRows[maxEnemiesCount];
+byte enemyCols[maxEnemiesCount];
+
+enum enemyDirection {
+  leftDirection,
+  rightDirection
+};
+
+enemyDirection enemyDirections[maxEnemiesCount];
+byte enemiesCount;
+
+const byte minDistanceBetweenEnemies = 3;
+
+const byte shootingRange = 5;
+
+const int nonExistantBullet = -1;
+
+int playerBulletRow = nonExistantBullet;
+int playerBulletCol = nonExistantBullet;
+
+int enemyBulletRows[maxEnemiesCount];
+int enemyBulletCols[maxEnemiesCount];
+enemyDirection enemyBulletDirection[maxEnemiesCount];
+byte enemyLife[maxEnemiesCount];
+
 LedControl lc = LedControl(dinPin, clockPin, loadPin, 1); //DIN, CLK, LOAD, No. DRIVER
 LiquidCrystal lcd(RS, enable, D4, D5, D6, D7);
 
@@ -180,7 +217,9 @@ enum state {
   setLevel,
   setContrast,
   setBrightness,
-  setMatrixBrightness
+  setMatrixBrightness,
+  deathScreen,
+  winScreen
 };
 
 enum joystickMove {
@@ -196,20 +235,9 @@ state gameState;
 bool joystickSwState = LOW;
 bool lastJoystickSwState = LOW;
 
-bool matrix[matrixSize][matrixSize] = {
-  {1, 0, 0, 0, 0, 0, 0, 0},
-  {0, 0, 0, 0, 1, 0, 0, 0},
-  {0, 0, 0, 0, 0, 0, 0, 0},
-  {0, 0, 0, 0, 1, 0, 0, 0},
-  {0, 0, 0, 0, 0, 0, 0, 0},
-  {0, 0, 0, 0, 0, 0, 0, 0},
-  {0, 0, 0, 0, 0, 0, 0, 0},
-  {0, 0, 0, 0, 0, 0, 0, 0}
-};
-
 void changeJoystickSwState() {
 
-  static const int debounceInterval = 200;
+  static const byte debounceInterval = 200;
   static unsigned long long lastInterruptTime = 0;
 
   unsigned long long interruptTime = millis();
@@ -238,12 +266,14 @@ void setup() {
   brightness = EEPROM.read(brightnessAddress);
   matrixBrightness = EEPROM.read(matrixBrightnessAddress);
 
+  //  contrast = 50;
+  //  brightness = 255;
 
   analogWrite(contrastPin, contrast);
   analogWrite(brightnessPin, brightness);
 
   lc.shutdown(0, false);
-  lc.setIntensity(0, 15);
+  lc.setIntensity(0, matrixBrightness);
   lc.clearDisplay(0);
 
   gameState = welcomeScreen;
@@ -264,25 +294,35 @@ void setup() {
     highscores[i] = EEPROM.read(address);
   }
 
-  for (int i = 0; i < 3; i++ ) {
-    Serial.println(highscoreNames[i]);
-  }
+  //  for (int i = 0; i < 3; i++) {
+  //    Serial.println(highscoreNames[i]);
+  //  }
 
-  randomSeed(analogRead(0));
+  randomSeed(analogRead(randomPin));
 
 
+  //    for (int i = 0, address = highscoreAddress; i < maxHighscoresCount; i++, address++) {
+  //      for (int characterIndex = 0; characterIndex < nameSize; characterIndex++) {
+  //        EEPROM.update(address, 0);
+  //        address++;
+  //      }
+  //      EEPROM.update(address, 0);
+  //    }
+  //
+  //    for(int i = 0;i < 3; i++) {
+  //      highscores[i] = 3 - i;
+  //      highscoreNames[i] = defaultName;
+  //    }
+  //
   //  for (int i = 0, address = highscoreAddress; i < maxHighscoresCount; i++, address++) {
   //    for (int characterIndex = 0; characterIndex < nameSize; characterIndex++) {
-  //      EEPROM.update(address, 0);
+  //      EEPROM.update(address, highscoreNames[i][characterIndex]);
   //      address++;
   //    }
-  //    EEPROM.update(address, 0);
+  //    EEPROM.update(address, highscores[i]);
   //  }
-  //
-  //  for(int i = 0;i < 3; i++) {
-  //    highscores[i] = 3 - i;
-  //    highscoreNames[i] = defaultName;
-  //  }
+
+
 }
 
 void generateLevel() {
@@ -292,13 +332,13 @@ void generateLevel() {
 
   for (int col = 0; col < mapWidth;) {
 
-    bool startPlatform; // 0 or 1
+    bool startPlatform;
 
     if (col - lastPlatformEnd > jumpSize) {
       startPlatform = true;
     }
     else {
-      startPlatform = random(2);
+      startPlatform = random(2); // 0 or 1
     }
 
     if (startPlatform) {
@@ -332,7 +372,30 @@ void displayMap() {
 
   lc.setLed(0, matrixSize - (playerCol + 1 - cameraLeftPosition) - 1, playerRow - 1, true); // display hand
 
-  //  delay(1000);
+  for (int i = 0; i < enemiesCount; i++) {
+    if (enemyCols[i] >= cameraLeftPosition && enemyCols[i] < cameraRightPosition) {
+      for (int row = enemyRows[i]; row > enemyRows[i] - characterSize; row--) {
+        lc.setLed(0, matrixSize - (enemyCols[i] - cameraLeftPosition) - 1, row, true);
+      }
+
+      if (enemyDirections[i] == leftDirection) {
+        lc.setLed(0, matrixSize - (enemyCols[i] - 1 - cameraLeftPosition) - 1, enemyRows[i] - 1, true);
+      }
+      else {
+        lc.setLed(0, matrixSize - (enemyCols[i] + 1 - cameraLeftPosition) - 1, enemyRows[i] - 1, true);
+      }
+    }
+  }
+
+  if (playerBulletCol >= cameraLeftPosition && playerBulletCol < cameraRightPosition) {
+    lc.setLed(0, matrixSize - (playerBulletCol - cameraLeftPosition) - 1, playerBulletRow, true);
+  }
+
+  for (int i = 0; i < enemiesCount; i++) {
+    if (enemyBulletCols[i] >= cameraLeftPosition && enemyBulletCols[i] < cameraRightPosition) {
+      lc.setLed(0, matrixSize - (enemyBulletCols[i] - cameraLeftPosition) - 1, enemyBulletRows[i], true);
+    }
+  }
 }
 
 void setStartingPosition() {
@@ -343,18 +406,13 @@ void setStartingPosition() {
         playerRow = row - 1;
         playerCol = col;
 
-        Serial.print(playerRow);
-        Serial.print(' ');
-        Serial.println(playerCol);
-
         return ;
       }
     }
   }
-
 }
 
-bool checkCollision(int nextRow, int nextCol) {
+bool checkCollision(int nextRow, int nextCol, bool isEnemy = false) {
 
   for (int row = nextRow; row > playerRow - characterSize; row--) {
     if (gameMap[row][nextCol]) {
@@ -362,19 +420,262 @@ bool checkCollision(int nextRow, int nextCol) {
     }
   }
 
-  if (gameMap[nextRow - 1][nextCol + 1]) {
+  if (isEnemy) {
+    if (gameMap[nextRow - 1][nextCol - 1]) {
+      return true;
+    }
+  }
+  else {
+    if (gameMap[nextRow - 1][nextCol + 1]) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+float genFloatRandom(int left, int right, int decimalCount) { // left and right of interval
+
+  int powerOfTen = 1;
+  while (decimalCount - 1) {
+    powerOfTen *= 10;
+    decimalCount--;
+  }
+
+  return random(left * powerOfTen, right * powerOfTen) / (1.0 * powerOfTen);
+}
+
+void generateEnemies() {
+
+  static const float minProbability = 0.0f;
+  static const float maxProbability = 1.0f;
+  static const byte decimalCount = 2;
+  float enemySpawningProbability = maxProbability - (1 + maxLevel - level) / 10.0f;
+
+  for (int row = 0; row < mapHeight; row++) {
+    for (int col = mapWidth - 1; col >= mapWidth / 4; col--) {
+      if (gameMap[row][col] && enemiesCount < maxEnemiesCount) {
+        if (enemiesCount == 0 || (enemiesCount > 0 && enemyCols[enemiesCount - 1] - col >= minDistanceBetweenEnemies)) {
+          float spawnEnemy = genFloatRandom(minProbability, maxProbability, decimalCount);
+
+          if (spawnEnemy > maxProbability - enemySpawningProbability) {
+            enemyRows[enemiesCount] = row - 1;
+            enemyCols[enemiesCount] = col;
+            enemyDirections[enemiesCount] = random(2) == 0 ? leftDirection : rightDirection;
+            enemiesCount++;
+          }
+        }
+      }
+    }
+  }
+
+  for (int i = 0; i < enemiesCount; i++) {
+    enemyLife[i] = 1;
+    enemyBulletRows[i] = nonExistantBullet;
+  }
+}
+
+bool playerInShootingRange(int row, int col, enemyDirection dir) {
+
+  if (abs(col - playerCol) <= shootingRange) {
+    for (int pRow = playerRow; pRow > playerRow - characterSize; pRow--) {
+      if (pRow == row - 1) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+void updateEnemiesPositions() {
+
+  static unsigned long long lastUpdate = 0;
+  static int platformMovementInterval = 500;
+
+  if (millis() - lastUpdate >= platformMovementInterval) {
+    lastUpdate = millis();
+    for (int i = 0; i < enemiesCount; i++) {
+      if (playerInShootingRange(enemyRows[i], enemyCols[i], enemyDirections[i])) {
+        if (playerCol < enemyCols[i]) {
+          enemyDirections[i] = leftDirection;
+        }
+        else {
+          enemyDirections[i] = rightDirection;
+        }
+      }
+      else {
+        if (gameMap[enemyRows[i] + 1][enemyCols[i] - (enemyDirections[i] == leftDirection ? 1 : -1)] == 0) {
+          enemyDirections[i] = enemyDirections[i] == leftDirection ? rightDirection : leftDirection;
+        }
+        else {
+          if (enemyDirections[i] == leftDirection) {
+            enemyCols[i]--;
+          }
+          else {
+            enemyCols[i]++;
+          }
+        }
+      }
+    }
+  }
+}
+
+int enemyCollision(int row, int col) {
+
+  for (int i = 0; i < enemiesCount; i++) {
+    for (int eRow = enemyRows[i]; eRow > enemyRows[i] - characterSize; eRow--) {
+      if (eRow == row && enemyCols[i] == col) {
+        return i;
+      }
+    }
+    if (row == enemyRows[i] - 1 && col == enemyCols + (enemyDirections[i] == leftDirection ? -1 : 1)) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+void updatePlayerBullet() {
+
+  static unsigned long long lastUpdate = 0;
+  static const int updateInterval = 100;
+  static byte distanceTravelled = 0;
+
+  if (joystickSwState != lastJoystickSwState && playerBulletRow == nonExistantBullet) {
+    playerBulletRow = playerRow - 1;
+    playerBulletCol = playerCol + 1;
+    distanceTravelled = 0;
+  }
+
+  if (playerBulletRow != nonExistantBullet) {
+    if (distanceTravelled >= shootingRange || checkCollision(playerBulletRow, playerBulletCol + 1)) {
+      playerBulletRow = nonExistantBullet;
+      playerBulletCol = nonExistantBullet;
+    }
+
+    int hitEnemy = enemyCollision(playerBulletRow, playerBulletCol + 1);
+    if (hitEnemy != -1) {
+      playerBulletRow = nonExistantBullet;
+      playerBulletCol = nonExistantBullet;
+      enemyLife[hitEnemy]--;
+    }
+
+    if (millis() - lastUpdate >= updateInterval) {
+      lastUpdate = millis();
+      playerBulletCol++;
+      distanceTravelled++;
+    }
+  }
+}
+
+void updateDeadEnemies() {
+
+  for (int i = enemiesCount - 1; i >= 0; i--) {
+    if (enemyLife[i] == 0) {
+      for (int j = i; j < enemiesCount; j++) { // override current enemy
+        enemyLife[j] = enemyLife[j + 1];
+        enemyRows[j] = enemyRows[j + 1];
+        enemyCols[j] = enemyCols[j + 1];
+        enemyDirections[j] = enemyDirections[j + 1];
+      }
+      enemiesCount--;
+    }
+  }
+}
+
+bool playerCollision(int row, int col) {
+
+  for (int pRow = playerRow; pRow > playerRow - characterSize; --pRow) {
+    if (row == pRow && col == playerCol) {
+      return true;
+    }
+  }
+
+  if (row == playerRow - 1 && col == playerCol + 1) {
     return true;
   }
 
   return false;
 }
 
+void updateEnemyBullets() {
+
+  static unsigned long long lastBulletUpdate[maxEnemiesCount];
+  static byte enemyBulletTravelledDistance[maxEnemiesCount];
+  static const int defaultBulletUpdateInterval = 450;
+  static const byte bulletUpdateIntervalOffset = 50;
+  int bulletUpdateInterval = defaultBulletUpdateInterval + bulletUpdateIntervalOffset * (level - 1);
+
+  for (int i = enemiesCount - 1; i >= 0; i--) {
+    if (enemyBulletRows[i] == nonExistantBullet) { // no bullet exists
+      if (playerInShootingRange(enemyRows[i], enemyCols[i], enemyDirections[i])) {
+        enemyBulletRows[i] = enemyRows[i] - 1;
+        enemyBulletCols[i] = enemyCols[i] + (enemyDirections[i] == leftDirection ? -2 : 2);
+        enemyBulletDirection[i] = enemyDirections[i];
+        enemyBulletTravelledDistance[i] = 0;
+      }
+    }
+    else {
+      if (millis() - lastBulletUpdate[i] >= bulletUpdateInterval) {
+        lastBulletUpdate[i] = millis();
+        enemyBulletCols[i] += (enemyBulletDirection[i] == leftDirection ? -1 : 1);
+        enemyBulletTravelledDistance[i]++;
+        fovUpdate = true;
+      }
+      if (playerCollision(enemyBulletRows[i], enemyBulletCols[i])) {
+        playerLife--;
+        enemyBulletRows[i] = enemyBulletCols[i] = nonExistantBullet;
+      }
+      else if (enemyBulletTravelledDistance[i] >= shootingRange || checkCollision(enemyBulletRows[i], enemyBulletCols[i] + (enemyBulletDirection[i] == leftDirection ? -1 : 1))) {
+        enemyBulletRows[i] = enemyBulletCols[i] = nonExistantBullet;
+      }
+    }
+  }
+}
+
+void displayInGameStats() {
+
+  static int lastLife = 0;
+  static int lastEnemiesCount = 0;
+  static int lastHighscore = 0;
+
+  if (lastLife != playerLife || lastEnemiesCount != enemiesCount || lastHighscore != playerHighscore) {
+    lcd.clear();
+    lcd.home();
+    lcd.print("Life:" + String(playerLife) + " Score:" + String(playerHighscore));
+    lcd.setCursor(0, lcdHeight - 1);
+    lcd.print("Enemies:" + String(enemiesCount));
+  }
+
+  lastLife = playerLife;
+  lastEnemiesCount = enemiesCount;
+  lastHighscore = playerHighscore;
+}
+
+void updateHighscore() {
+
+  static unsigned long long lastUpdate = 0;
+  static const unsigned long long updateInterval = 500;
+
+  if (millis() - lastUpdate > updateInterval) {
+    lastUpdate = millis();
+    if (playerHighscore - (1 + maxLevel - level) > 0) {
+      playerHighscore -= (1 + maxLevel - level);
+    }
+    else {
+      gameState = deathScreen;
+    }
+  }
+}
+
 void runPlayGame() {
 
   static bool startOfLevel = true;
   static unsigned long long lastJump = 0;
-  static int jumpInterval = 200;
-  static int fallInterval = 200;
+  static byte jumpInterval = 200;
+  static byte fallInterval = 200;
   static unsigned long long lastFall = 0;
 
   if (startOfLevel) {
@@ -383,11 +684,23 @@ void runPlayGame() {
         gameMap[row][col] = false;
       }
     }
+    playerLife = defaultPlayerLife;
+    enemiesCount = 0;
+    cameraLeftPosition = 0;
+    cameraRightPosition = matrixSize;
+    playerHighscore = startPlayerHighscore;
     generateLevel();
     setStartingPosition();
+    generateEnemies();
     startOfLevel = false;
     fovUpdate = true;
   }
+
+  displayInGameStats();
+  updateHighscore();
+
+  updateEnemiesPositions();
+  updateEnemyBullets();
 
   if (jumpsLeft) {
     if (playerRow - characterSize + 1 > 0) {
@@ -408,11 +721,14 @@ void runPlayGame() {
     jumpsLeft = jumpSize;
   }
 
-  if (playerRow == mapHeight) { // dead
+  if (playerRow == mapHeight || playerLife == 0 || enemiesCount == 0) { // end of game
     startOfLevel = true;
-    gameState = homeScreen;
-    cameraLeftPosition = 0;
-    cameraRightPosition = matrixSize;
+    if (enemiesCount == 0) {
+      gameState = winScreen;
+    }
+    else {
+      gameState = deathScreen;
+    }
     return ;
   }
 
@@ -425,22 +741,36 @@ void runPlayGame() {
   joystickMove = joystickHorizontalMove();
 
   if (joystickMove == left && cameraLeftPosition > 0 && !checkCollision(playerRow, playerCol - 1)) {
-    cameraLeftPosition--;
-    cameraRightPosition--;
-    playerCol--;
+    if (mapWidth - matrixSize + 1 < playerCol) {
+      playerCol--;
+    }
+    else {
+      cameraLeftPosition--;
+      cameraRightPosition--;
+      playerCol--;
+    }
     fovUpdate = true;
   }
 
-  if (joystickMove == right && cameraRightPosition < mapWidth && !checkCollision(playerRow, playerCol + 1)) {
-    cameraLeftPosition++;
-    cameraRightPosition++;
-    playerCol++;
-    fovUpdate = true;
+  if (joystickMove == right && !checkCollision(playerRow, playerCol + 1)) {
+    if (cameraRightPosition < mapWidth) {
+      cameraLeftPosition++;
+      cameraRightPosition++;
+      playerCol++;
+      fovUpdate = true;
+    }
+    else if (playerCol < mapWidth - 1) {
+      playerCol++;
+      fovUpdate = true;
+    }
   }
 
   if (fovUpdate) {
     displayMap();
   }
+
+  updateDeadEnemies();
+  updatePlayerBullet();
 }
 
 void loop() {
@@ -478,8 +808,92 @@ void loop() {
   else if (gameState == play) {
     runPlayGame();
   }
+  else if (gameState == deathScreen) {
+    runDeathScreen();
+  }
+  else if (gameState == winScreen) {
+    runWinScreen();
+  }
 
   lastJoystickSwState = joystickSwState;
+}
+
+bool playerObtainedHighscore() {
+
+  for (int i = 0; i < maxHighscoresCount; i++) {
+    if (highscores[i] < playerHighscore) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void runWinScreen() {
+
+  static bool displayedWin = false;
+  static bool displayedNewHighscore = false;
+  static const int winScreenDuration = 2000;
+  static unsigned long long winScreenStart = 0;
+
+  if (winScreenStart == 0) {
+    winScreenStart = millis();
+  }
+
+  if (millis() - winScreenStart < winScreenDuration) {
+    if (!displayedWin) {
+      displayedWin = true;
+      lcd.clear();
+      lcd.home();
+      lcd.print("You won!");
+      lcd.setCursor(0, lcdHeight - 1);
+      lcd.print("Your score:" + String(playerHighscore));
+    }
+  }
+  else if (millis() - winScreenStart < 2 * winScreenDuration) {
+    if (playerObtainedHighscore()) {
+      if (!displayedNewHighscore) {
+        displayedNewHighscore = true;
+        lcd.clear();
+        lcd.home();
+        lcd.print("You obtained");
+        lcd.setCursor(0, lcdHeight - 1);
+        lcd.print("a new highscore!");
+      }
+    }
+  }
+  else {
+    displayedWin = false;
+    displayedNewHighscore = false;
+    gameState = changeName;
+  }
+}
+
+void runDeathScreen() {
+
+  static const int deathScreenDuration = 2000;
+  static unsigned long long deathScreenStart = 0;
+  static bool displayed = false;
+
+  if (deathScreenStart == 0) {
+    deathScreenStart = millis();
+  }
+
+  if (millis() - deathScreenStart < deathScreenDuration) { // enough to just check millis() against the duration since it is the first thing that runs
+    if (!displayed) {
+      lcd.clear();
+      lcd.home(); // first row
+      lcd.print("Oh no, you died!");
+      lcd.setCursor(0, lcdHeight - 1);
+      lcd.print("Your score: " + String(playerHighscore));
+      displayed = true;
+    }
+  }
+  else {
+    lcd.clear();
+    deathScreenStart = 0;
+    displayed = false;
+    gameState = homeScreen;
+  }
 }
 
 void runWelcomeScreen() {
@@ -506,7 +920,7 @@ void runWelcomeScreen() {
 
 joystickMove joystickVerticalMove() {
 
-  static int joystickMoved = false;
+  static bool joystickMoved = false;
 
   int xValue = analogRead(joystickPinX);
 
@@ -606,7 +1020,7 @@ int renderScrollingMenu(String contents[], int contentsLength, bool useSelection
 
 void runHomeScreen() {
 
-  static const int optionsLength = 4;
+  static const byte optionsLength = 4;
   static const String options[] = {
     "1.Play",
     "2.Settings",
@@ -652,14 +1066,13 @@ void runAboutMenu() {
 
 void runSettingsMenu() {
 
-  static const int settingsCount = 6;
+  static const int settingsCount = 5;
   static String settings[settingsCount] = {
-    "1.Enter name",
-    "2.Level",
-    "3.Contrast",
-    "4.Brightness",
-    "5.Game light",
-    "6.Back"
+    "1.Level",
+    "2.Contrast",
+    "3.Brightness",
+    "4.Game light",
+    "5.Back"
   };
 
   int exitCode = renderScrollingMenu(settings, settingsCount, true);
@@ -668,22 +1081,19 @@ void runSettingsMenu() {
     exitCode++;
   }
 
-  if (exitCode == 6) {
+  if (exitCode == 5) {
     gameState = homeScreen;
   }
   else if (exitCode == 1) {
-    gameState = changeName;
-  }
-  else if (exitCode == 2) {
     gameState = setLevel;
   }
-  else if (exitCode == 3) {
+  else if (exitCode == 2) {
     gameState = setContrast;
   }
-  else if (exitCode == 4) {
+  else if (exitCode == 3) {
     gameState = setBrightness;
   }
-  else if (exitCode == 5) {
+  else if (exitCode == 4) {
     gameState = setMatrixBrightness;
   }
 }
@@ -727,11 +1137,9 @@ void runHighscoreMenu() {
 joystickMove joystickHorizontalMove() {
 
   static unsigned long long lastChange = 0;
-  static unsigned int updateInterval = 200;
+  static byte updateInterval = 200;
 
   if (millis() - lastChange > updateInterval) {
-
-
     int yValue = analogRead(joystickPinY);
 
     if (yValue < joystickMinThreshold) { // joystick moved right
@@ -817,11 +1225,11 @@ void runChangeName() {
 
   lastPlayerNameIndex = playerNameIndex;
 
-
   if (joystickSwState != lastJoystickSwState) {
     lastPlayerNameIndex = 1;
     changedLetter = false;
-    gameState = settings;
+    updateHighscores();
+    gameState = homeScreen;
     lcd.noCursor();
   }
 }
@@ -829,6 +1237,12 @@ void runChangeName() {
 void runSetLevel() {
 
   static int lastLevel = 0;
+  static const String difficulty[maxLevel] = {
+    "Easy",
+    "Medium",
+    "Hard",
+    "Insane"
+  };
 
   int joystickMove = joystickHorizontalMove();
 
@@ -840,7 +1254,6 @@ void runSetLevel() {
     level++;
   }
 
-
   String title = "Select level:";
 
   if (level != lastLevel) {
@@ -849,14 +1262,16 @@ void runSetLevel() {
     lcd.home();
     lcd.print(title);
 
-    lcd.setCursor(lcdWidth / 2 - 2, 1);
+    byte startPosition = (lcdWidth - difficulty[level - 1].length() - 4) / 2;
+
+    lcd.setCursor(startPosition, lcdHeight - 1);
     lcd.write(byte(decreaseArrowLcdId));
 
-    lcd.setCursor(lcdWidth / 2 + 2, 1);
-    lcd.write(byte(increaseArrowLcdId));
+    lcd.setCursor(startPosition + 2, lcdHeight - 1);
+    lcd.print(difficulty[level - 1]);
 
-    lcd.setCursor(lcdWidth / 2, 1);
-    lcd.print(level);
+    lcd.setCursor(startPosition + 3 + difficulty[level - 1].length(), lcdHeight - 1);
+    lcd.write(byte(increaseArrowLcdId));
   }
 
   lastLevel = level;
@@ -889,13 +1304,13 @@ void runSetContrast() {
     lcd.home();
     lcd.print(title);
 
-    lcd.setCursor(lcdWidth / 2 - 2, 1);
+    lcd.setCursor(lcdWidth / 2 - 2, lcdHeight - 1);
     lcd.write(byte(decreaseArrowLcdId));
 
-    lcd.setCursor(lcdWidth / 2 + 2, 1);
+    lcd.setCursor(lcdWidth / 2 + 2, lcdHeight - 1);
     lcd.write(byte(increaseArrowLcdId));
 
-    lcd.setCursor(lcdWidth / 2, 1);
+    lcd.setCursor(lcdWidth / 2, lcdHeight - 1);
     lcd.print(contrast - minContrast);
 
     analogWrite(contrastPin, contrast);
@@ -935,13 +1350,13 @@ void runSetBrightness() {
     int startPosition = lcdWidth - 4 - digitsCount(brightness - minBrightness);
     startPosition /= 2;
 
-    lcd.setCursor(startPosition, 1);
+    lcd.setCursor(startPosition, lcdHeight - 1);
     lcd.write(byte(decreaseArrowLcdId));
 
-    lcd.setCursor(startPosition + digitsCount(brightness - minBrightness) + 3, 1);
+    lcd.setCursor(startPosition + digitsCount(brightness - minBrightness) + 3, lcdHeight - 1);
     lcd.write(byte(increaseArrowLcdId));
 
-    lcd.setCursor(startPosition + 2, 1);
+    lcd.setCursor(startPosition + 2, lcdHeight - 1);
     lcd.print(brightness - minBrightness);
 
     analogWrite(brightnessPin, brightness);
@@ -978,16 +1393,23 @@ void runSetMatrixBrightness() {
     lcd.home();
     lcd.print(title);
 
-    lcd.setCursor(lcdWidth / 2 - 2, 1);
+    lcd.setCursor(lcdWidth / 2 - 2, lcdHeight - 1);
     lcd.write(byte(decreaseArrowLcdId));
 
-    lcd.setCursor(lcdWidth / 2 + 2, 1);
+    lcd.setCursor(lcdWidth / 2 + 2, lcdHeight - 1);
     lcd.write(byte(increaseArrowLcdId));
 
-    lcd.setCursor(lcdWidth / 2, 1);
+    lcd.setCursor(lcdWidth / 2, lcdHeight - 1);
     lcd.print(matrixBrightness);
 
     lc.setIntensity(0, matrixBrightness);
+    lc.clearDisplay(0);
+
+    for (int row = 0; row < matrixSize; row++) {
+      for (int col = 0; col < matrixSize; col++) {
+        lc.setLed(0, row, col, true);
+      }
+    }
   }
 
   lastMatrixBrightness = matrixBrightness;
@@ -999,7 +1421,7 @@ void runSetMatrixBrightness() {
   }
 }
 
-void updateHighScores() {
+void updateHighscores() {
 
   // insert highscore
 

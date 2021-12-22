@@ -5,7 +5,9 @@
 // TO DO:
 
 // difficulty stuff
-// memory problems (fix: print rows of bits, hopefully not)
+/* memory problems:
+ *  print rows of bits (-18%)
+ */
 // fix falling bug
 // fix joystick movement
 // enemy shooting needs more testing
@@ -110,15 +112,6 @@ String highscoreNames[maxHighscoresCount];
 
 byte highscores[maxHighscoresCount];
 
-int xValue = 0;
-int yValue = 0;
-
-byte xPos = 0;
-byte yPos = 0;
-
-byte xLastPos = 0;
-byte yLastPos = 0;
-
 const byte minMatrixBrightness = 1;
 byte matrixBrightness = 8;
 const byte maxMatrixBrightness = 9;
@@ -128,18 +121,13 @@ byte brightness = 240;
 const byte maxBrightness = 245;
 const byte brightnessOffset = 10;
 
-
 const byte lcdWidth = 16;
 const byte lcdHeight = 2;
-
-unsigned long long lastMoved = 0;
-const byte moveInterval = 100;
 
 const byte minContrast = 60;
 byte contrast = 110;
 const byte maxContrast = 150;
 
-bool matrixUpdate = true;
 int level = minLevel;
 
 String playerName = defaultName;
@@ -192,7 +180,7 @@ const byte minDistanceBetweenEnemies = 3;
 
 const byte shootingRange = 5;
 
-const int nonExistantBullet = -1;
+const byte nonExistantBullet = -1;
 
 int playerBulletRow = nonExistantBullet;
 int playerBulletCol = nonExistantBullet;
@@ -447,9 +435,9 @@ float genFloatRandom(int left, int right, int decimalCount) { // left and right 
 
 void generateEnemies() {
 
-  static const float minProbability = 0.0f;
-  static const float maxProbability = 1.0f;
-  static const byte decimalCount = 2;
+  const float minProbability = 0.0f;
+  const float maxProbability = 1.0f;
+  const byte decimalCount = 2;
   float enemySpawningProbability = maxProbability - (1 + maxLevel - level) / 10.0f;
 
   for (int row = 0; row < mapHeight; row++) {
@@ -491,7 +479,7 @@ bool playerInShootingRange(int row, int col, enemyDirection dir) {
 void updateEnemiesPositions() {
 
   static unsigned long long lastUpdate = 0;
-  static int platformMovementInterval = 500;
+  const int platformMovementInterval = 500;
 
   if (millis() - lastUpdate >= platformMovementInterval) {
     lastUpdate = millis();
@@ -540,7 +528,7 @@ int enemyCollision(int row, int col) {
 void updatePlayerBullet() {
 
   static unsigned long long lastUpdate = 0;
-  static const int updateInterval = 100;
+  const int updateInterval = 100;
   static byte distanceTravelled = 0;
 
   if (joystickSwState != lastJoystickSwState && playerBulletRow == nonExistantBullet) {
@@ -604,8 +592,8 @@ void updateEnemyBullets() {
 
   static unsigned long long lastBulletUpdate[maxEnemiesCount];
   static byte enemyBulletTravelledDistance[maxEnemiesCount];
-  static const int defaultBulletUpdateInterval = 450;
-  static const byte bulletUpdateIntervalOffset = 50;
+  const int defaultBulletUpdateInterval = 450;
+  const byte bulletUpdateIntervalOffset = 50;
   int bulletUpdateInterval = defaultBulletUpdateInterval + bulletUpdateIntervalOffset * (level - 1);
 
   for (int i = enemiesCount - 1; i >= 0; i--) {
@@ -637,9 +625,9 @@ void updateEnemyBullets() {
 
 void displayInGameStats() {
 
-  static int lastLife = 0;
-  static int lastEnemiesCount = 0;
-  static int lastHighscore = 0;
+  static byte lastLife = 0;
+  static byte lastEnemiesCount = 0;
+  static byte lastHighscore = 0;
 
   if (lastLife != playerLife || lastEnemiesCount != enemiesCount || lastHighscore != playerHighscore) {
     lcd.clear();
@@ -657,7 +645,7 @@ void displayInGameStats() {
 void updateHighscore() {
 
   static unsigned long long lastUpdate = 0;
-  static const unsigned long long updateInterval = 500;
+  const unsigned long long updateInterval = 500;
 
   if (millis() - lastUpdate > updateInterval) {
     lastUpdate = millis();
@@ -674,8 +662,8 @@ void runPlayGame() {
 
   static bool startOfLevel = true;
   static unsigned long long lastJump = 0;
-  static byte jumpInterval = 200;
-  static byte fallInterval = 200;
+  const byte jumpInterval = 200;
+  const byte fallInterval = 200;
   static unsigned long long lastFall = 0;
 
   if (startOfLevel) {
@@ -832,7 +820,7 @@ void runWinScreen() {
 
   static bool displayedWin = false;
   static bool displayedNewHighscore = false;
-  static const int winScreenDuration = 2000;
+  const int winScreenDuration = 2000;
   static unsigned long long winScreenStart = 0;
 
   if (winScreenStart == 0) {
@@ -870,7 +858,7 @@ void runWinScreen() {
 
 void runDeathScreen() {
 
-  static const int deathScreenDuration = 2000;
+  const int deathScreenDuration = 2000;
   static unsigned long long deathScreenStart = 0;
   static bool displayed = false;
 
@@ -898,7 +886,7 @@ void runDeathScreen() {
 
 void runWelcomeScreen() {
 
-  static const int welcomeScreenDuration = 1000;
+  const int welcomeScreenDuration = 1000;
   static bool displayed = false;
 
   if (millis() < welcomeScreenDuration) { // enough to just check millis() against the duration since it is the first thing that runs
@@ -944,10 +932,10 @@ joystickMove joystickVerticalMove() {
 
 int renderScrollingMenu(String contents[], int contentsLength, bool useSelection = false) {
 
-  static int menuRow = 0;
-  static int lastMenuRow = 1;
-  static int selectedRow = 0;
-  static int lastSelectedRow = 0;
+  static byte menuRow = 0;
+  static byte lastMenuRow = 1;
+  static byte selectedRow = 0;
+  static byte lastSelectedRow = 0;
 
   int joystickMove = joystickVerticalMove();
 
@@ -1020,8 +1008,8 @@ int renderScrollingMenu(String contents[], int contentsLength, bool useSelection
 
 void runHomeScreen() {
 
-  static const byte optionsLength = 4;
-  static const String options[] = {
+  const byte optionsLength = 4;
+  const String options[] = {
     "1.Play",
     "2.Settings",
     "3.Highscores",
@@ -1049,8 +1037,8 @@ void runHomeScreen() {
 
 void runAboutMenu() {
 
-  static const int aboutDescriptionRowsCount = 8;
-  static const String aboutDescription[aboutDescriptionRowsCount] = {
+  const int aboutDescriptionRowsCount = 8;
+  const String aboutDescription[aboutDescriptionRowsCount] = {
     "Arcade-shooter",
     "Made by",
     "Andrei Blahovici",
@@ -1066,8 +1054,8 @@ void runAboutMenu() {
 
 void runSettingsMenu() {
 
-  static const int settingsCount = 5;
-  static String settings[settingsCount] = {
+  const int settingsCount = 5;
+  String settings[settingsCount] = {
     "1.Level",
     "2.Contrast",
     "3.Brightness",
@@ -1237,7 +1225,7 @@ void runChangeName() {
 void runSetLevel() {
 
   static int lastLevel = 0;
-  static const String difficulty[maxLevel] = {
+  const String difficulty[maxLevel] = {
     "Easy",
     "Medium",
     "Hard",
@@ -1436,6 +1424,8 @@ void updateHighscores() {
       break;
     }
   }
+
+  // save to EEPROM
 
   for (int i = 0, address = highscoreAddress; i < maxHighscoresCount; i++, address++) {
     for (int characterIndex = 0; characterIndex < nameSize; characterIndex++) {

@@ -5,9 +5,7 @@
 // TO DO:
 
 // difficulty stuff
-/* memory problems:
- *  print rows of bits (-18%)
- */
+// memory problems
 // fix falling bug
 // fix joystick movement
 // enemy shooting needs more testing
@@ -143,9 +141,9 @@ const byte matrixBrightnessAddress = 2;
 const byte highscoreAddress = 3;
 
 const byte mapHeight = 8;
-const byte mapWidth = 50;
+const byte mapWidth = 64;
 
-bool gameMap[mapHeight][mapWidth];
+unsigned long long gameMap[mapHeight];
 const byte minPlatformLength = 3;
 const byte maxPlatformLength = 6;
 const byte characterSize = 3; // size of player and enemies
@@ -235,6 +233,16 @@ void changeJoystickSwState() {
   }
 
   lastInterruptTime = interruptTime;
+}
+
+bool getCell(int row, int col) {
+
+  return gameMap[row] >> (mapWidth - col - 1) & 1;
+}
+
+void setCell(int row, int col, bool val) { // val = 0 or 1
+
+  gameMap[row] ^= (-val ^ gameMap[row]) & (1ULL << (mapWidth - col - 1));
 }
 
 void setup() {
@@ -333,11 +341,12 @@ void generateLevel() {
       byte platformLength = random(minPlatformLength, min(mapWidth - col, maxPlatformLength));
       byte mapRow = random(max(lastPlatformHeight - jumpSize, characterSize + 1), mapHeight);
       for (int i = col; i < col + platformLength; i++) {
-        gameMap[mapRow][i] = true;
+        setCell(mapRow, i, true);
       }
       col += platformLength;
       lastPlatformHeight = mapRow;
       lastPlatformEnd = col - 1;
+
     }
     else {
       col++;
@@ -350,7 +359,7 @@ void displayMap() {
   lc.clearDisplay(0);
   for (int row = 0; row < matrixSize; row++) {
     for (int col = cameraLeftPosition; col < cameraRightPosition; col++) {
-      lc.setLed(0, matrixSize - (col - cameraLeftPosition) - 1, row, gameMap[row][col]);
+      lc.setLed(0, matrixSize - (col - cameraLeftPosition) - 1, row, getCell(row, col));
     }
   }
 
@@ -390,7 +399,7 @@ void setStartingPosition() {
 
   for (int col = 0; col < mapWidth; col++) {
     for (int row = 0; row < mapHeight; row++) {
-      if (gameMap[row][col]) {
+      if (getCell(row, col)) {
         playerRow = row - 1;
         playerCol = col;
 
@@ -403,18 +412,18 @@ void setStartingPosition() {
 bool checkCollision(int nextRow, int nextCol, bool isEnemy = false) {
 
   for (int row = nextRow; row > playerRow - characterSize; row--) {
-    if (gameMap[row][nextCol]) {
+    if (getCell(row, nextCol)) {
       return true;
     }
   }
 
   if (isEnemy) {
-    if (gameMap[nextRow - 1][nextCol - 1]) {
+    if (getCell(nextRow - 1, nextCol - 1)) {
       return true;
     }
   }
   else {
-    if (gameMap[nextRow - 1][nextCol + 1]) {
+    if (getCell(nextRow - 1, nextCol + 1)) {
       return true;
     }
   }
@@ -442,7 +451,7 @@ void generateEnemies() {
 
   for (int row = 0; row < mapHeight; row++) {
     for (int col = mapWidth - 1; col >= mapWidth / 4; col--) {
-      if (gameMap[row][col] && enemiesCount < maxEnemiesCount) {
+      if (getCell(row, col) && enemiesCount < maxEnemiesCount) {
         if (enemiesCount == 0 || (enemiesCount > 0 && enemyCols[enemiesCount - 1] - col >= minDistanceBetweenEnemies)) {
           float spawnEnemy = genFloatRandom(minProbability, maxProbability, decimalCount);
 
@@ -493,7 +502,7 @@ void updateEnemiesPositions() {
         }
       }
       else {
-        if (gameMap[enemyRows[i] + 1][enemyCols[i] - (enemyDirections[i] == leftDirection ? 1 : -1)] == 0) {
+        if (getCell(enemyRows[i] + 1, enemyCols[i] - (enemyDirections[i] == leftDirection ? 1 : -1)) == 0) {
           enemyDirections[i] = enemyDirections[i] == leftDirection ? rightDirection : leftDirection;
         }
         else {
@@ -669,7 +678,7 @@ void runPlayGame() {
   if (startOfLevel) {
     for (int row = 0; row < mapHeight; row++) {
       for (int col = 0; col < mapWidth; col++) {
-        gameMap[row][col] = false;
+        setCell(row, col, false);
       }
     }
     playerLife = defaultPlayerLife;

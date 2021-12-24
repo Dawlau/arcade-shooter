@@ -2,14 +2,6 @@
 #include <LiquidCrystal.h>
 #include "EEPROM.h"
 
-// TO DO:
-
-// difficulty stuff
-// memory problems
-// fix falling bug
-// fix joystick movement
-// enemy shooting needs more testing
-
 const byte lcdCharacterSize = 8;
 
 const byte downScrollingArrow[lcdCharacterSize] = {
@@ -73,11 +65,13 @@ const byte selectionArrowLcdId = 2;
 const byte decreaseArrowLcdId = 3;
 const byte increaseArrowLcdId = 4;
 
+const byte buzzerPin = 6;
+
 const byte RS = 8;
-const byte enable = 9;
+const byte enable = 3;
 const byte D4 = 7;
 const byte D5 = 13;
-const byte D6 = 5;
+const byte D6 = A2;
 const byte D7 = 4;
 
 const byte dinPin = 12;
@@ -85,17 +79,17 @@ const byte clockPin = 11;
 const byte loadPin = 10;
 
 const byte joystickPinX = A0;
-const byte joystickPinY = A1;
+const byte joystickPinY = A5;
 const byte joystickPinSW = 2;
 
-const byte brightnessPin = 6;
+const byte brightnessPin = 5;
 
 const byte matrixSize = 8;
 
-const byte joystickMinThreshold = 200;
-const int joystickMaxThreshold = 900;
+const byte joystickMinThreshold = 250;
+const int joystickMaxThreshold = 800;
 
-const byte contrastPin = 3;
+const byte contrastPin = 9;
 
 const String gameName = "Arcade-shooter";
 const String defaultName = "anonymous";
@@ -122,9 +116,9 @@ const byte brightnessOffset = 10;
 const byte lcdWidth = 16;
 const byte lcdHeight = 2;
 
-const byte minContrast = 60;
+const byte minContrast = 20;
 byte contrast = 110;
-const byte maxContrast = 150;
+const byte maxContrast = 119;
 
 int level = minLevel;
 
@@ -139,6 +133,7 @@ const byte contrastAddress = 0;
 const byte brightnessAddress = 1;
 const byte matrixBrightnessAddress = 2;
 const byte highscoreAddress = 3;
+const byte soundAddress = 4;
 
 const byte mapHeight = 8;
 const byte mapWidth = 64;
@@ -162,7 +157,7 @@ byte jumpsLeft = 0;
 
 const byte randomPin = 0;
 
-const byte maxEnemiesCount = 20;
+const byte maxEnemiesCount = 15;
 byte enemyRows[maxEnemiesCount];
 byte enemyCols[maxEnemiesCount];
 
@@ -180,6 +175,14 @@ const byte shootingRange = 5;
 
 const byte nonExistantBullet = -1;
 
+const byte defaultEnemyLife = 1;
+
+const int scrollingFrequency = 25;
+const int jumpFrequency = 800;
+const int shootingFrequency = 500;
+const int menuClickFrequency = 100;
+const int menuSelectFrequency = 300;
+
 int playerBulletRow = nonExistantBullet;
 int playerBulletCol = nonExistantBullet;
 
@@ -187,6 +190,8 @@ int enemyBulletRows[maxEnemiesCount];
 int enemyBulletCols[maxEnemiesCount];
 enemyDirection enemyBulletDirection[maxEnemiesCount];
 byte enemyLife[maxEnemiesCount];
+
+bool sound = true;
 
 LedControl lc = LedControl(dinPin, clockPin, loadPin, 1); //DIN, CLK, LOAD, No. DRIVER
 LiquidCrystal lcd(RS, enable, D4, D5, D6, D7);
@@ -205,7 +210,9 @@ enum state {
   setBrightness,
   setMatrixBrightness,
   deathScreen,
-  winScreen
+  winScreen,
+  resetHighscores,
+  setSound
 };
 
 enum joystickMove {
@@ -220,6 +227,18 @@ state gameState;
 
 bool joystickSwState = LOW;
 bool lastJoystickSwState = LOW;
+
+void toneBuzzer(int frequency) {
+
+  const byte defaultDuration = 255;
+
+  if (sound == false) {
+    noTone(buzzerPin);
+  }
+  else {
+    tone(buzzerPin, frequency, defaultDuration);
+  }
+}
 
 void changeJoystickSwState() {
 
@@ -246,7 +265,6 @@ void setCell(int row, int col, bool val) { // val = 0 or 1
 }
 
 void setup() {
-  Serial.begin(9600);
 
   pinMode(joystickPinSW, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(joystickPinSW), changeJoystickSwState, FALLING); // set interrupt for joystick button
@@ -261,12 +279,10 @@ void setup() {
   contrast = EEPROM.read(contrastAddress);
   brightness = EEPROM.read(brightnessAddress);
   matrixBrightness = EEPROM.read(matrixBrightnessAddress);
+  sound = EEPROM.read(soundAddress);
 
   //  contrast = 50;
   //  brightness = 255;
-
-  analogWrite(contrastPin, contrast);
-  analogWrite(brightnessPin, brightness);
 
   lc.shutdown(0, false);
   lc.setIntensity(0, matrixBrightness);
@@ -290,35 +306,10 @@ void setup() {
     highscores[i] = EEPROM.read(address);
   }
 
-  //  for (int i = 0; i < 3; i++) {
-  //    Serial.println(highscoreNames[i]);
-  //  }
-
   randomSeed(analogRead(randomPin));
 
-
-  //    for (int i = 0, address = highscoreAddress; i < maxHighscoresCount; i++, address++) {
-  //      for (int characterIndex = 0; characterIndex < nameSize; characterIndex++) {
-  //        EEPROM.update(address, 0);
-  //        address++;
-  //      }
-  //      EEPROM.update(address, 0);
-  //    }
-  //
-  //    for(int i = 0;i < 3; i++) {
-  //      highscores[i] = 3 - i;
-  //      highscoreNames[i] = defaultName;
-  //    }
-  //
-  //  for (int i = 0, address = highscoreAddress; i < maxHighscoresCount; i++, address++) {
-  //    for (int characterIndex = 0; characterIndex < nameSize; characterIndex++) {
-  //      EEPROM.update(address, highscoreNames[i][characterIndex]);
-  //      address++;
-  //    }
-  //    EEPROM.update(address, highscores[i]);
-  //  }
-
-
+  analogWrite(contrastPin, contrast);
+  analogWrite(brightnessPin, brightness);
 }
 
 void generateLevel() {
@@ -411,6 +402,10 @@ void setStartingPosition() {
 
 bool checkCollision(int nextRow, int nextCol, bool isEnemy = false) {
 
+  if (nextRow >= matrixSize || nextRow < 0 || nextCol < 0 || nextCol >= mapWidth) {
+    return false;
+  }
+
   for (int row = nextRow; row > playerRow - characterSize; row--) {
     if (getCell(row, nextCol)) {
       return true;
@@ -467,7 +462,7 @@ void generateEnemies() {
   }
 
   for (int i = 0; i < enemiesCount; i++) {
-    enemyLife[i] = 1;
+    enemyLife[i] = level > maxLevel / 2 ? defaultEnemyLife + 1 : defaultEnemyLife;
     enemyBulletRows[i] = nonExistantBullet;
   }
 }
@@ -544,6 +539,7 @@ void updatePlayerBullet() {
     playerBulletRow = playerRow - 1;
     playerBulletCol = playerCol + 1;
     distanceTravelled = 0;
+    toneBuzzer(shootingFrequency);
   }
 
   if (playerBulletRow != nonExistantBullet) {
@@ -601,9 +597,9 @@ void updateEnemyBullets() {
 
   static unsigned long long lastBulletUpdate[maxEnemiesCount];
   static byte enemyBulletTravelledDistance[maxEnemiesCount];
-  const int defaultBulletUpdateInterval = 450;
+  const int defaultBulletUpdateInterval = 600;
   const byte bulletUpdateIntervalOffset = 50;
-  int bulletUpdateInterval = defaultBulletUpdateInterval + bulletUpdateIntervalOffset * (level - 1);
+  int bulletUpdateInterval = defaultBulletUpdateInterval - bulletUpdateIntervalOffset * (level - 1);
 
   for (int i = enemiesCount - 1; i >= 0; i--) {
     if (enemyBulletRows[i] == nonExistantBullet) { // no bullet exists
@@ -716,6 +712,7 @@ void runPlayGame() {
 
   if (joystickMove == up && (checkCollision(playerRow + 1, playerCol) || checkCollision(playerRow, playerCol + 1))) {
     jumpsLeft = jumpSize;
+    toneBuzzer(jumpFrequency);
   }
 
   if (playerRow == mapHeight || playerLife == 0 || enemiesCount == 0) { // end of game
@@ -811,6 +808,12 @@ void loop() {
   else if (gameState == winScreen) {
     runWinScreen();
   }
+  else if (gameState == resetHighscores) {
+    runResetHighscores();
+  }
+  else if (gameState == setSound) {
+    runSetSound();
+  }
 
   lastJoystickSwState = joystickSwState;
 }
@@ -861,6 +864,7 @@ void runWinScreen() {
   else {
     displayedWin = false;
     displayedNewHighscore = false;
+    winScreenStart = 0;
     gameState = changeName;
   }
 }
@@ -895,7 +899,7 @@ void runDeathScreen() {
 
 void runWelcomeScreen() {
 
-  const int welcomeScreenDuration = 1000;
+  const int welcomeScreenDuration = 2000;
   static bool displayed = false;
 
   if (millis() < welcomeScreenDuration) { // enough to just check millis() against the duration since it is the first thing that runs
@@ -906,20 +910,28 @@ void runWelcomeScreen() {
       lcd.setCursor(0, lcdHeight - 1); // second row
       lcd.print(gameName + "!");
       displayed = true;
+      //      runThemeSong();
     }
   }
   else {
     lcd.clear();
     gameState = homeScreen;
   }
-
 }
 
 joystickMove joystickVerticalMove() {
 
   static bool joystickMoved = false;
+  const int samplesCount = 300;
 
-  int xValue = analogRead(joystickPinX);
+  float average = 0.0f;
+
+  for (int i = 0; i < samplesCount; i++) {
+    int xValue = analogRead(joystickPinX);
+    average += xValue;
+  }
+
+  int xValue = average / samplesCount;
 
   if (xValue < joystickMinThreshold && !joystickMoved) { // joystick moved up
     joystickMoved = true;
@@ -951,18 +963,23 @@ int renderScrollingMenu(String contents[], int contentsLength, bool useSelection
   if (joystickMove == up) {
     if (menuRow) {
       menuRow--;
+      toneBuzzer(scrollingFrequency);
     }
     if (selectedRow) {
       selectedRow--;
+      toneBuzzer(scrollingFrequency);
     }
   }
   else if (joystickMove == down) {
     if (menuRow < contentsLength - lcdHeight) {
       menuRow++;
+      toneBuzzer(scrollingFrequency);
     }
     if (selectedRow < contentsLength - 1) {
       selectedRow++;
+      toneBuzzer(scrollingFrequency);
     }
+
   }
 
   if (menuRow != lastMenuRow || selectedRow != lastSelectedRow) {
@@ -998,6 +1015,7 @@ int renderScrollingMenu(String contents[], int contentsLength, bool useSelection
     menuRow = 0;
     lastMenuRow = 1;
     lastSelectedRow = 0;
+    toneBuzzer(menuClickFrequency);
 
     int auxSelectedRow = selectedRow;
     selectedRow = 0;
@@ -1022,7 +1040,7 @@ void runHomeScreen() {
     "1.Play",
     "2.Settings",
     "3.Highscores",
-    "4.About"
+    "4.About",
   };
 
   int exitCode = renderScrollingMenu(options, optionsLength, true);
@@ -1038,7 +1056,7 @@ void runHomeScreen() {
     else if (exitCode == 3) {
       gameState = highscore;
     }
-    else {
+    else if (exitCode == 4) {
       gameState = about;
     }
   }
@@ -1063,13 +1081,15 @@ void runAboutMenu() {
 
 void runSettingsMenu() {
 
-  const int settingsCount = 5;
+  const int settingsCount = 7;
   String settings[settingsCount] = {
     "1.Level",
     "2.Contrast",
     "3.Brightness",
     "4.Game light",
-    "5.Back"
+    "5.Reset highs",
+    "6.Sound",
+    "7.Back"
   };
 
   int exitCode = renderScrollingMenu(settings, settingsCount, true);
@@ -1078,7 +1098,7 @@ void runSettingsMenu() {
     exitCode++;
   }
 
-  if (exitCode == 5) {
+  if (exitCode == 7) {
     gameState = homeScreen;
   }
   else if (exitCode == 1) {
@@ -1092,6 +1112,113 @@ void runSettingsMenu() {
   }
   else if (exitCode == 4) {
     gameState = setMatrixBrightness;
+  }
+  else if (exitCode == 5) {
+    gameState = resetHighscores;
+  }
+  else if (exitCode == 6) {
+    gameState = setSound;
+  }
+}
+
+void resetHighscoresEEPROM() {
+
+  const int defaultHighscore = 1;
+
+  for (int i = 0; i < maxHighscoresCount; i++) {
+    highscoreNames[i] = defaultName;
+    highscores[i] = defaultHighscore;
+  }
+
+  for (int i = 0, address = highscoreAddress; i < maxHighscoresCount; i++, address++) {
+    for (int characterIndex = 0; characterIndex < nameSize; characterIndex++) {
+      EEPROM.update(address, highscoreNames[i][characterIndex]);
+      address++;
+    }
+    EEPROM.update(address, highscores[i]);
+  }
+}
+
+void runResetHighscores() {
+
+  static bool reseted = false;
+  static unsigned long long messageStart = 0;
+  const unsigned int messageDuration = 2000;
+  static bool messageDisplayed = false;
+
+  if (!reseted) {
+    reseted = true;
+    resetHighscoresEEPROM();
+    messageStart = millis();
+  }
+  else if (millis() - messageStart <= messageDuration) {
+    if (!messageDisplayed) {
+      lcd.clear();
+      messageDisplayed = true;
+      lcd.home();
+      lcd.print("Highscores have");
+      lcd.setCursor(0, lcdHeight - 1);
+      lcd.print("been reseted");
+    }
+  }
+  else {
+    gameState = settings;
+    reseted = false;
+    messageDisplayed = false;
+  }
+}
+
+void runSetSound() {
+
+  static bool soundChanged = false;
+  static int firstRun = -1;
+
+  int joystickMove = joystickHorizontalMove();
+
+  if (joystickMove == left) {
+    soundChanged = true;
+    sound = false;
+    toneBuzzer(menuSelectFrequency);
+  }
+
+  if (joystickMove == right) {
+    soundChanged = true;
+    sound = true;
+    toneBuzzer(menuSelectFrequency);
+  }
+
+  if (joystickMove == neutral) {
+    soundChanged = false;
+  }
+
+  if (soundChanged || firstRun == -1) {
+    lcd.clear();
+
+    lcd.home();
+    lcd.print("Turn ON/OFF:");
+
+    int messageLength = sound ? 2 : 3; // ON is 2 chars and OFF is 3 chars
+    int startPosition = (lcdWidth - 4 - messageLength) / 2;
+
+    lcd.setCursor(startPosition, lcdHeight - 1);
+    lcd.write(byte(decreaseArrowLcdId));
+
+    lcd.setCursor(startPosition + 2, lcdHeight - 1);
+    lcd.print(sound == false ? "OFF" : "ON");
+
+    lcd.setCursor(startPosition + 3 + messageLength, lcdHeight - 1);
+    lcd.write(byte(increaseArrowLcdId));
+  }
+
+  if (firstRun == -1) {
+    firstRun = 0;
+  }
+
+  if (joystickSwState != lastJoystickSwState) {
+    gameState = settings;
+    firstRun = -1;
+    toneBuzzer(menuClickFrequency);
+    EEPROM.update(soundAddress, sound);
   }
 }
 
@@ -1129,15 +1256,27 @@ void runHighscoreMenu() {
   }
 
   int exitCode = renderScrollingMenu(lcdContents, lcdContentsLength);
+
+  if (exitCode == -1) {
+    lcdContents[0] = "";
+  }
 }
 
 joystickMove joystickHorizontalMove() {
 
   static unsigned long long lastChange = 0;
   static byte updateInterval = 200;
+  const int samplesCount = 300;
 
   if (millis() - lastChange > updateInterval) {
-    int yValue = analogRead(joystickPinY);
+    float average = 0.0f;
+
+    for (int i = 0; i < samplesCount; i++) {
+      int yValue = analogRead(joystickPinY);
+      average += yValue;
+    }
+
+    int yValue = average / samplesCount;
 
     if (yValue < joystickMinThreshold) { // joystick moved right
       lastChange = millis();
@@ -1155,17 +1294,19 @@ joystickMove joystickHorizontalMove() {
 
 void runChangeName() {
 
-  static int lastPlayerNameIndex = 1;
+  static int lastPlayerNameIndex = -1;
   static bool changedLetter = false;
 
   int joystickMoveHorizontal = joystickHorizontalMove();
 
   if (joystickMoveHorizontal == left && playerNameIndex > 0) {
     playerNameIndex--;
+    toneBuzzer(menuSelectFrequency);
   }
 
   if (joystickMoveHorizontal == right && playerNameIndex < nameSize - 1) {
     playerNameIndex++;
+    toneBuzzer(menuSelectFrequency);
   }
 
   int joystickMoveVertical = joystickVerticalMove();
@@ -1223,10 +1364,11 @@ void runChangeName() {
   lastPlayerNameIndex = playerNameIndex;
 
   if (joystickSwState != lastJoystickSwState) {
-    lastPlayerNameIndex = 1;
+    lastPlayerNameIndex = -1;
     changedLetter = false;
     updateHighscores();
     gameState = homeScreen;
+    toneBuzzer(menuClickFrequency);
     lcd.noCursor();
   }
 }
@@ -1245,10 +1387,12 @@ void runSetLevel() {
 
   if (joystickMove == left && level > minLevel) {
     level--;
+    toneBuzzer(menuSelectFrequency);
   }
 
   if (joystickMove == right && level < maxLevel) {
     level++;
+    toneBuzzer(menuSelectFrequency);
   }
 
   String title = "Select level:";
@@ -1276,6 +1420,7 @@ void runSetLevel() {
   if (joystickSwState != lastJoystickSwState) {
     lastLevel = 0;
     gameState = settings;
+    toneBuzzer(menuClickFrequency);
   }
 }
 
@@ -1287,10 +1432,12 @@ void runSetContrast() {
 
   if (joystickMove == left && contrast > minContrast) {
     contrast--;
+    toneBuzzer(menuSelectFrequency);
   }
 
   if (joystickMove == right && contrast < maxContrast) {
     contrast++;
+    toneBuzzer(menuSelectFrequency);
   }
 
   String title = "Select contrast:";
@@ -1319,6 +1466,7 @@ void runSetContrast() {
     lastContrast = 0;
     EEPROM.update(contrastAddress, contrast);
     gameState = settings;
+    toneBuzzer(menuClickFrequency);
   }
 }
 
@@ -1330,10 +1478,12 @@ void runSetBrightness() {
 
   if (joystickMove == left && brightness > minBrightness) {
     brightness -= brightnessOffset;
+    toneBuzzer(menuSelectFrequency);
   }
 
   if (joystickMove == right && brightness < maxBrightness) {
     brightness += brightnessOffset;
+    toneBuzzer(menuSelectFrequency);
   }
 
   String title = "Brightness:";
@@ -1365,6 +1515,7 @@ void runSetBrightness() {
     lastBrightness = 0;
     EEPROM.update(brightnessAddress, brightness);
     gameState = settings;
+    toneBuzzer(menuClickFrequency);
   }
 }
 
@@ -1376,10 +1527,12 @@ void runSetMatrixBrightness() {
 
   if (joystickMove == left && matrixBrightness > minMatrixBrightness) {
     matrixBrightness--;
+    toneBuzzer(menuSelectFrequency);
   }
 
   if (joystickMove == right && matrixBrightness < maxMatrixBrightness) {
     matrixBrightness++;
+    toneBuzzer(menuSelectFrequency);
   }
 
   String title = "Game brightness:";
@@ -1415,6 +1568,7 @@ void runSetMatrixBrightness() {
     lastMatrixBrightness = 0;
     EEPROM.update(matrixBrightnessAddress, matrixBrightness);
     gameState = settings;
+    toneBuzzer(menuClickFrequency);
   }
 }
 

@@ -281,9 +281,6 @@ void setup() {
   matrixBrightness = EEPROM.read(matrixBrightnessAddress);
   sound = EEPROM.read(soundAddress);
 
-  //  contrast = 50;
-  //  brightness = 255;
-
   lc.shutdown(0, false);
   lc.setIntensity(0, matrixBrightness);
   lc.clearDisplay(0);
@@ -296,6 +293,7 @@ void setup() {
   lcd.createChar(increaseArrowLcdId, increaseArrow);
   lcd.createChar(decreaseArrowLcdId, decreaseArrow);
 
+  // load the highscores from EEPROM
   for (int i = 0, address = highscoreAddress; i < maxHighscoresCount; i++, address++) {
     String copyName = "";
     for (int characterIndex = 0; characterIndex < nameSize; characterIndex++) {
@@ -312,16 +310,16 @@ void setup() {
   analogWrite(brightnessPin, brightness);
 }
 
+// setup the platforms for a new level
 void generateLevel() {
 
   byte lastPlatformHeight = 3;
   byte lastPlatformEnd = -1;
 
   for (int col = 0; col < mapWidth;) {
-
     bool startPlatform;
 
-    if (col - lastPlatformEnd > jumpSize) {
+    if (col - lastPlatformEnd > jumpSize) { // avoid having unreachable platforms
       startPlatform = true;
     }
     else {
@@ -330,14 +328,13 @@ void generateLevel() {
 
     if (startPlatform) {
       byte platformLength = random(minPlatformLength, min(mapWidth - col, maxPlatformLength));
-      byte mapRow = random(max(lastPlatformHeight - jumpSize, characterSize + 1), mapHeight);
+      byte mapRow = random(max(lastPlatformHeight - jumpSize, characterSize + 1), mapHeight); // the row on the matrix where the next platform will be spawned
       for (int i = col; i < col + platformLength; i++) {
         setCell(mapRow, i, true);
       }
       col += platformLength;
       lastPlatformHeight = mapRow;
       lastPlatformEnd = col - 1;
-
     }
     else {
       col++;
@@ -345,22 +342,24 @@ void generateLevel() {
   }
 }
 
+// displays all elements of the game on the matrix; instead of just using (row, col) I mirrored the positions because of the physical orientation of the matrix
+// objects are rendered only if they are in the range of the camera
 void displayMap() {
 
   lc.clearDisplay(0);
-  for (int row = 0; row < matrixSize; row++) {
+  for (int row = 0; row < matrixSize; row++) { // display the platforms
     for (int col = cameraLeftPosition; col < cameraRightPosition; col++) {
       lc.setLed(0, matrixSize - (col - cameraLeftPosition) - 1, row, getCell(row, col));
     }
   }
 
-  for (int row = playerRow; row > playerRow - characterSize; row--) {
+  for (int row = playerRow; row > playerRow - characterSize; row--) { // display the player
     lc.setLed(0, matrixSize - (playerCol - cameraLeftPosition) - 1, row, true);
   }
 
   lc.setLed(0, matrixSize - (playerCol + 1 - cameraLeftPosition) - 1, playerRow - 1, true); // display hand
 
-  for (int i = 0; i < enemiesCount; i++) {
+  for (int i = 0; i < enemiesCount; i++) { // render enemies
     if (enemyCols[i] >= cameraLeftPosition && enemyCols[i] < cameraRightPosition) {
       for (int row = enemyRows[i]; row > enemyRows[i] - characterSize; row--) {
         lc.setLed(0, matrixSize - (enemyCols[i] - cameraLeftPosition) - 1, row, true);
@@ -375,11 +374,11 @@ void displayMap() {
     }
   }
 
-  if (playerBulletCol >= cameraLeftPosition && playerBulletCol < cameraRightPosition) {
+  if (playerBulletCol >= cameraLeftPosition && playerBulletCol < cameraRightPosition) { // player bullet
     lc.setLed(0, matrixSize - (playerBulletCol - cameraLeftPosition) - 1, playerBulletRow, true);
   }
 
-  for (int i = 0; i < enemiesCount; i++) {
+  for (int i = 0; i < enemiesCount; i++) { // enemy bullets
     if (enemyBulletCols[i] >= cameraLeftPosition && enemyBulletCols[i] < cameraRightPosition) {
       lc.setLed(0, matrixSize - (enemyBulletCols[i] - cameraLeftPosition) - 1, enemyBulletRows[i], true);
     }
@@ -400,6 +399,7 @@ void setStartingPosition() {
   }
 }
 
+// checks if the next position will be a wall
 bool checkCollision(int nextRow, int nextCol, bool isEnemy = false) {
 
   if (nextRow >= matrixSize || nextRow < 0 || nextCol < 0 || nextCol >= mapWidth) {
@@ -445,8 +445,8 @@ void generateEnemies() {
   float enemySpawningProbability = maxProbability - (1 + maxLevel - level) / 10.0f;
 
   for (int row = 0; row < mapHeight; row++) {
-    for (int col = mapWidth - 1; col >= mapWidth / 4; col--) {
-      if (getCell(row, col) && enemiesCount < maxEnemiesCount) {
+    for (int col = mapWidth - 1; col >= mapWidth / 4; col--) { // go from right to left on the map and stop once you reach the first quarter of the map, this way I avoid spawning enemies right to the player
+      if (getCell(row, col) && enemiesCount < maxEnemiesCount) { // if there is a platform at this position and I can still spawn enemies
         if (enemiesCount == 0 || (enemiesCount > 0 && enemyCols[enemiesCount - 1] - col >= minDistanceBetweenEnemies)) {
           float spawnEnemy = genFloatRandom(minProbability, maxProbability, decimalCount);
 
@@ -462,7 +462,7 @@ void generateEnemies() {
   }
 
   for (int i = 0; i < enemiesCount; i++) {
-    enemyLife[i] = level > maxLevel / 2 ? defaultEnemyLife + 1 : defaultEnemyLife;
+    enemyLife[i] = level > maxLevel / 2 ? defaultEnemyLife + 1 : defaultEnemyLife; // set enemy life to 2 for hard and insane and 1 otherwise
     enemyBulletRows[i] = nonExistantBullet;
   }
 }
@@ -480,7 +480,7 @@ bool playerInShootingRange(int row, int col, enemyDirection dir) {
   return false;
 }
 
-void updateEnemiesPositions() {
+void updateEnemiesPositions() { // move enemies left and right
 
   static unsigned long long lastUpdate = 0;
   const int platformMovementInterval = 500;
@@ -488,7 +488,7 @@ void updateEnemiesPositions() {
   if (millis() - lastUpdate >= platformMovementInterval) {
     lastUpdate = millis();
     for (int i = 0; i < enemiesCount; i++) {
-      if (playerInShootingRange(enemyRows[i], enemyCols[i], enemyDirections[i])) {
+      if (playerInShootingRange(enemyRows[i], enemyCols[i], enemyDirections[i])) { // if player is in shooting range change the direction of the enemy towards the player
         if (playerCol < enemyCols[i]) {
           enemyDirections[i] = leftDirection;
         }
@@ -496,7 +496,7 @@ void updateEnemiesPositions() {
           enemyDirections[i] = rightDirection;
         }
       }
-      else {
+      else { // go left and right
         if (getCell(enemyRows[i] + 1, enemyCols[i] - (enemyDirections[i] == leftDirection ? 1 : -1)) == 0) {
           enemyDirections[i] = enemyDirections[i] == leftDirection ? rightDirection : leftDirection;
         }
@@ -513,7 +513,7 @@ void updateEnemiesPositions() {
   }
 }
 
-int enemyCollision(int row, int col) {
+int enemyCollision(int row, int col) { // check if enemy hits a platform
 
   for (int i = 0; i < enemiesCount; i++) {
     for (int eRow = enemyRows[i]; eRow > enemyRows[i] - characterSize; eRow--) {
@@ -535,7 +535,7 @@ void updatePlayerBullet() {
   const int updateInterval = 100;
   static byte distanceTravelled = 0;
 
-  if (joystickSwState != lastJoystickSwState && playerBulletRow == nonExistantBullet) {
+  if (joystickSwState != lastJoystickSwState && playerBulletRow == nonExistantBullet) { // shoot if joystick is pressed
     playerBulletRow = playerRow - 1;
     playerBulletCol = playerCol + 1;
     distanceTravelled = 0;
@@ -543,7 +543,7 @@ void updatePlayerBullet() {
   }
 
   if (playerBulletRow != nonExistantBullet) {
-    if (distanceTravelled >= shootingRange || checkCollision(playerBulletRow, playerBulletCol + 1)) {
+    if (distanceTravelled >= shootingRange || checkCollision(playerBulletRow, playerBulletCol + 1)) { // erase the player bullet after some distance or if it hit a wall
       playerBulletRow = nonExistantBullet;
       playerBulletCol = nonExistantBullet;
     }
@@ -578,7 +578,7 @@ void updateDeadEnemies() {
   }
 }
 
-bool playerCollision(int row, int col) {
+bool playerCollision(int row, int col) { // check if player hits a wall
 
   for (int pRow = playerRow; pRow > playerRow - characterSize; --pRow) {
     if (row == pRow && col == playerCol) {
@@ -603,7 +603,7 @@ void updateEnemyBullets() {
 
   for (int i = enemiesCount - 1; i >= 0; i--) {
     if (enemyBulletRows[i] == nonExistantBullet) { // no bullet exists
-      if (playerInShootingRange(enemyRows[i], enemyCols[i], enemyDirections[i])) {
+      if (playerInShootingRange(enemyRows[i], enemyCols[i], enemyDirections[i])) { // if player is in shooting range make enemy shoot
         enemyBulletRows[i] = enemyRows[i] - 1;
         enemyBulletCols[i] = enemyCols[i] + (enemyDirections[i] == leftDirection ? -2 : 2);
         enemyBulletDirection[i] = enemyDirections[i];
@@ -611,17 +611,17 @@ void updateEnemyBullets() {
       }
     }
     else {
-      if (millis() - lastBulletUpdate[i] >= bulletUpdateInterval) {
+      if (millis() - lastBulletUpdate[i] >= bulletUpdateInterval) { // move the bullet
         lastBulletUpdate[i] = millis();
         enemyBulletCols[i] += (enemyBulletDirection[i] == leftDirection ? -1 : 1);
         enemyBulletTravelledDistance[i]++;
         fovUpdate = true;
       }
-      if (playerCollision(enemyBulletRows[i], enemyBulletCols[i])) {
+      if (playerCollision(enemyBulletRows[i], enemyBulletCols[i])) { // if the player is hit
         playerLife--;
         enemyBulletRows[i] = enemyBulletCols[i] = nonExistantBullet;
       }
-      else if (enemyBulletTravelledDistance[i] >= shootingRange || checkCollision(enemyBulletRows[i], enemyBulletCols[i] + (enemyBulletDirection[i] == leftDirection ? -1 : 1))) {
+      else if (enemyBulletTravelledDistance[i] >= shootingRange || checkCollision(enemyBulletRows[i], enemyBulletCols[i] + (enemyBulletDirection[i] == leftDirection ? -1 : 1))) { // check if exceed the shooting range or if the bullet hit a wall
         enemyBulletRows[i] = enemyBulletCols[i] = nonExistantBullet;
       }
     }
@@ -634,7 +634,7 @@ void displayInGameStats() {
   static byte lastEnemiesCount = 0;
   static byte lastHighscore = 0;
 
-  if (lastLife != playerLife || lastEnemiesCount != enemiesCount || lastHighscore != playerHighscore) {
+  if (lastLife != playerLife || lastEnemiesCount != enemiesCount || lastHighscore != playerHighscore) { // if some stat updated refresh the lcd
     lcd.clear();
     lcd.home();
     lcd.print("Life:" + String(playerLife) + " Score:" + String(playerHighscore));
@@ -655,7 +655,7 @@ void updateHighscore() {
   if (millis() - lastUpdate > updateInterval) {
     lastUpdate = millis();
     if (playerHighscore - (1 + maxLevel - level) > 0) {
-      playerHighscore -= (1 + maxLevel - level);
+      playerHighscore -= (1 + maxLevel - level); // lower the score as the game progresses depending on the difficulty (faster for easy and slower for insane)
     }
     else {
       gameState = deathScreen;
@@ -671,7 +671,7 @@ void runPlayGame() {
   const byte fallInterval = 200;
   static unsigned long long lastFall = 0;
 
-  if (startOfLevel) {
+  if (startOfLevel) { // initialize level
     for (int row = 0; row < mapHeight; row++) {
       for (int col = 0; col < mapWidth; col++) {
         setCell(row, col, false);
@@ -703,19 +703,19 @@ void runPlayGame() {
         lastJump = millis();
       }
     }
-    else {
+    else { // it hit the ceiling of the map
       jumpsLeft = 0;
     }
   }
 
   int joystickMove = joystickVerticalMove();
 
-  if (joystickMove == up && (checkCollision(playerRow + 1, playerCol) || checkCollision(playerRow, playerCol + 1))) {
+  if (joystickMove == up && (checkCollision(playerRow + 1, playerCol) || checkCollision(playerRow, playerCol + 1))) { // player jumps
     jumpsLeft = jumpSize;
     toneBuzzer(jumpFrequency);
   }
 
-  if (playerRow == mapHeight || playerLife == 0 || enemiesCount == 0) { // end of game
+  if (playerRow == mapHeight || playerLife == 0 || enemiesCount == 0) { // end of game if player fell off a platform or died or all enemies are dead
     startOfLevel = true;
     if (enemiesCount == 0) {
       gameState = winScreen;
@@ -734,7 +734,7 @@ void runPlayGame() {
 
   joystickMove = joystickHorizontalMove();
 
-  if (joystickMove == left && cameraLeftPosition > 0 && !checkCollision(playerRow, playerCol - 1)) {
+  if (joystickMove == left && cameraLeftPosition > 0 && !checkCollision(playerRow, playerCol - 1)) { // player moves left
     if (mapWidth - matrixSize + 1 < playerCol) {
       playerCol--;
     }
@@ -746,7 +746,7 @@ void runPlayGame() {
     fovUpdate = true;
   }
 
-  if (joystickMove == right && !checkCollision(playerRow, playerCol + 1)) {
+  if (joystickMove == right && !checkCollision(playerRow, playerCol + 1)) { // player moves right
     if (cameraRightPosition < mapWidth) {
       cameraLeftPosition++;
       cameraRightPosition++;
@@ -759,7 +759,7 @@ void runPlayGame() {
     }
   }
 
-  if (fovUpdate) {
+  if (fovUpdate) { // refresh the matrix if there are any updates on the field of view
     displayMap();
   }
 
@@ -818,7 +818,7 @@ void loop() {
   lastJoystickSwState = joystickSwState;
 }
 
-bool playerObtainedHighscore() {
+bool playerObtainedHighscore() { // this checks wether the player obtained a new highscore or not
 
   for (int i = 0; i < maxHighscoresCount; i++) {
     if (highscores[i] < playerHighscore) {
@@ -839,6 +839,7 @@ void runWinScreen() {
     winScreenStart = millis();
   }
 
+  // first display the congrats message then the new highscore message
   if (millis() - winScreenStart < winScreenDuration) {
     if (!displayedWin) {
       displayedWin = true;
@@ -879,7 +880,7 @@ void runDeathScreen() {
     deathScreenStart = millis();
   }
 
-  if (millis() - deathScreenStart < deathScreenDuration) { // enough to just check millis() against the duration since it is the first thing that runs
+  if (millis() - deathScreenStart < deathScreenDuration) {
     if (!displayed) {
       lcd.clear();
       lcd.home(); // first row
@@ -910,7 +911,6 @@ void runWelcomeScreen() {
       lcd.setCursor(0, lcdHeight - 1); // second row
       lcd.print(gameName + "!");
       displayed = true;
-      //      runThemeSong();
     }
   }
   else {
@@ -919,14 +919,14 @@ void runWelcomeScreen() {
   }
 }
 
-joystickMove joystickVerticalMove() {
+joystickMove joystickVerticalMove() { // up and down joystick movement
 
   static bool joystickMoved = false;
   const int samplesCount = 300;
 
   float average = 0.0f;
 
-  for (int i = 0; i < samplesCount; i++) {
+  for (int i = 0; i < samplesCount; i++) { // average multiple values because of the noise
     int xValue = analogRead(joystickPinX);
     average += xValue;
   }
@@ -951,7 +951,7 @@ joystickMove joystickVerticalMove() {
 }
 
 
-int renderScrollingMenu(String contents[], int contentsLength, bool useSelection = false) {
+int renderScrollingMenu(String contents[], int contentsLength, bool useSelection = false) { // renders some scrolling texts on the lcd
 
   static byte menuRow = 0;
   static byte lastMenuRow = 1;
@@ -960,6 +960,7 @@ int renderScrollingMenu(String contents[], int contentsLength, bool useSelection
 
   int joystickMove = joystickVerticalMove();
 
+  // movement through the menu (up and down)
   if (joystickMove == up) {
     if (menuRow) {
       menuRow--;
@@ -982,7 +983,7 @@ int renderScrollingMenu(String contents[], int contentsLength, bool useSelection
 
   }
 
-  if (menuRow != lastMenuRow || selectedRow != lastSelectedRow) {
+  if (menuRow != lastMenuRow || selectedRow != lastSelectedRow) { // refresh if anything changes
 
     lcd.clear();
 
@@ -1045,6 +1046,7 @@ void runHomeScreen() {
 
   int exitCode = renderScrollingMenu(options, optionsLength, true);
 
+  // the exit codes correspond (1 through 4) to the options of the menu (see the variable options[])
   if (exitCode != -1) {
     exitCode++;
     if (exitCode == 1) {
@@ -1093,6 +1095,8 @@ void runSettingsMenu() {
   };
 
   int exitCode = renderScrollingMenu(settings, settingsCount, true);
+
+  // the exit codes correspond (1 through 7) to the options of the menu (see the variable settings[])
 
   if (exitCode != -1) {
     exitCode++;
@@ -1226,7 +1230,7 @@ int digitsCount(int no) {
 
   int count = 1;
 
-  while (no > 9) {
+  while (no > 9) { // go until there is only one digit left (this is good in case the input is 0)
     count++;
     no /= 10;
   }
